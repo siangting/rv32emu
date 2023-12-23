@@ -121,7 +121,7 @@ endif
 ENABLE_JIT ?= 0
 $(call set-feature, JIT)
 ifeq ($(call has, JIT), 1)
-OBJS_EXT += jit_x64.o 
+OBJS_EXT += jit_x64.o
 ifneq ($(processor), x86_64)
 $(error JIT mode only supports for x64 target currently.)
 endif
@@ -147,6 +147,11 @@ $(OUT)/emulate.o: CFLAGS += -foptimize-sibling-calls -fomit-frame-pointer -fno-s
 # to the first target after .DEFAULT_GOAL is not set.
 .DEFAULT_GOAL :=
 
+EXPORTED_FUNCS :=
+ifeq ("$(CC_IS_EMCC)", "1")
+BIN := $(BIN).js
+endif
+
 all: config $(BIN)
 
 OBJS := \
@@ -166,13 +171,27 @@ OBJS := \
 OBJS := $(addprefix $(OUT)/, $(OBJS))
 deps := $(OBJS:%.o=%.o.d)
 
+EMCC_CFLAGS :=
+ifeq ("$(CC_IS_EMCC)", "1")
+EXPORTED_FUNCS += _malloc,_free, \
+				 _elf_new,_elf_delete,_elf_open,_elf_get_symbol,_elf_load, \
+				 _state_new,_state_delete,_rv_create,_rv_delete,_rv_has_halted,_rv_step, \
+				 _on_mem_ifetch,_on_mem_read_w,_on_mem_read_s,_on_mem_read_b,\
+				 _on_mem_write_w,_on_mem_write_s,_on_mem_write_b,\
+				 _ecall_handler,_ebreak_handler,_memcpy_handler,_memset_handler
+EMCC_CFLAGS += -sINITIAL_MEMORY=2GB --embed-file build --pre-js pre.js \
+				-s"EXPORTED_FUNCTIONS=$(EXPORTED_FUNCS)" \
+				-sEXPORTED_RUNTIME_METHODS=getValue,setValue,stringToNewUTF8,addFunction \
+				-sALLOW_TABLE_GROWTH
+endif
+
 $(OUT)/%.o: src/%.c
 	$(VECHO) "  CC\t$@\n"
 	$(Q)$(CC) -o $@ $(CFLAGS) -c -MMD -MF $@.d $<
 
 $(BIN): $(OBJS)
 	$(VECHO) "  LD\t$@\n"
-	$(Q)$(CC) -o $@ $^ $(LDFLAGS)
+	$(Q)$(CC) -o $@ $(EMCC_CFLAGS) $^ $(LDFLAGS)
 
 config: $(CONFIG_FILE)
 $(CONFIG_FILE):
@@ -235,7 +254,7 @@ endif
 endif
 
 clean:
-	$(RM) $(BIN) $(OBJS) $(HIST_BIN) $(HIST_OBJS) $(deps) $(CACHE_OUT) src/rv32_jit_template.c
+	$(RM) $(BIN) $(OBJS) $(HIST_BIN) $(HIST_OBJS) $(deps) $(CACHE_OUT) src/rv32_jit_template.c build/rv32emu.js build/rv32emu.wasm
 distclean: clean
 	-$(RM) $(DOOM_DATA) $(QUAKE_DATA)
 	$(RM) -r $(OUT)/id1

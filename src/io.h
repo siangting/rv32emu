@@ -8,16 +8,23 @@
 #include <stdint.h>
 #include <string.h>
 
-/* Directly map a memory with a size of 2^32 bytes. All memory read/write
- * operations can access this memory through the memory subsystem.
+/*
+ * set memory size to 2^32 - 1 bytes
+ *
+ * The memory size is set to 2^32 - 1 bytes in order to make this emulator
+ * portable for both 32-bit and 64-bit platforms. As a result, it can access
+ * any segment of the memory on either platform. Furthermore, it is safe
+ * because most of the test cases' data memory usage will not exceed this
+ * memory size.
  */
+#define MEM_SIZE 0xFFFFFFFFULL
 
 typedef struct {
     uint8_t *mem_base;
     uint64_t mem_size;
 } memory_t;
 
-memory_t *memory_new(void);
+memory_t *memory_new(uint32_t mem_size);
 void memory_delete(memory_t *m);
 
 /* read a C-style string from memory */

@@ -222,7 +222,7 @@ typedef struct {
 } state_t;
 
 /* create a state */
-state_t *state_new(void);
+state_t *state_new(uint32_t mem_size);
 
 /* delete a state */
 void state_delete(state_t *s);

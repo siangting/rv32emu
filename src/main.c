@@ -44,7 +44,7 @@ static bool opt_misaligned = false;
 
 #define MEMIO(op) on_mem_##op
 #define IO_HANDLER_IMPL(type, op, RW)                                     \
-    static IIF(RW)(                                                       \
+    IIF(RW)(                                                       \
         /* W */ void MEMIO(op)(riscv_word_t addr, riscv_##type##_t data), \
         /* R */ riscv_##type##_t MEMIO(op)(riscv_word_t addr))            \
     {                                                                     \
@@ -222,7 +222,7 @@ int main(int argc, char **args)
         .allow_misalign = opt_misaligned,
     };
 
-    state_t *state = state_new();
+    state_t *state = state_new(MEM_SIZE);
 
     /* find the start of the heap */
     const struct Elf32_Sym *end;

@@ -294,11 +294,11 @@ void rv_reset(riscv_t *rv, riscv_word_t pc, int argc, char **args)
     rv->halt = false;
 }
 
-state_t *state_new(void)
+state_t *state_new(uint32_t mem_size)
 {
     state_t *s = malloc(sizeof(state_t));
     assert(s);
-    s->mem = memory_new();
+    s->mem = memory_new(mem_size);
     s->break_addr = 0;
 
     s->fd_map = map_init(int, FILE *, map_cmp_int);

@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en-us">
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <title>Running rv32emu in web</title>
+    <style>
+      body {
+        font-family: arial;
+        margin: 0;
+        padding: none;
+      }
+
+      #output {
+        width: 100%;
+        height: 200px;
+        margin: 0 auto;
+        margin-top: 10px;
+        border-left: 0px;
+        border-right: 0px;
+        padding-left: 0px;
+        padding-right: 0px;
+        display: block;
+        background-color: black;
+        color: white;
+        font-family: 'Lucida Console', Monaco, monospace;
+        outline: none;
+      }
+    </style>
+  </head>
+  <body>
+<span id='controls'>
+  <input type="button" value="hello.elf" onclick="buttonHandler('hello.elf')">
+  <input type="button" value="fcalc.elf" onclick="buttonHandler('fcalc.elf')">
+  <input type="button" value="ieee754.elf" onclick="buttonHandler('ieee754.elf')">
+  <input type="button" value="pi.elf" onclick="buttonHandler('pi.elf')">
+  <input type="button" value="coremark.elf" onclick="buttonHandler('coremark.elf')">
+  <input type="button" value="dhrystone.elf" onclick="buttonHandler('dhrystone.elf')">
+</span>
+    <textarea id="output" style="width: 100%; height: 500px;"></textarea>
+
+    <script type='text/javascript'>
+      var spinnerElement = document.getElementById('spinner');
+
+      function buttonHandler(target_elf){
+        var element = document.getElementById('output');
+        if (element) {
+          element.value += `Running ${target_elf}...\n`;
+          element.scrollTop = element.scrollHeight;
+        }
+        setTimeout(() => {
+          Module['onRuntimeInitialized'](target_elf);
+        }, 1000);
+      }
+
+      var Module = {
+        print: (function() {
+          var element = document.getElementById('output');
+          if (element) element.value = ''; // clear browser cache
+          return function(text) {
+            if (arguments.length > 1) text = Array.prototype.slice.call(arguments).join(' ');
+            console.log(text);
+            if (element) {
+              element.value += text + "\n";
+              element.scrollTop = element.scrollHeight; // focus on bottom
+            }
+          };
+        })(),
+      };
+    </script>
+    <script async type="text/javascript" src="rv32emu.js"></script>
+  </body>
+</html>
