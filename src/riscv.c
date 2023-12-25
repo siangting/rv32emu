@@ -14,7 +14,7 @@
 #include "utils.h"
 #if RV32_HAS(JIT)
 #include "cache.h"
-#include "jit_x64.h"
+#include "jit.h"
 #define CODE_CACHE_SIZE (1024 * 1024)
 #endif
 
@@ -27,6 +27,7 @@ static void block_map_init(block_map_t *map, const uint8_t bits)
     map->block_capacity = 1 << bits;
     map->size = 0;
     map->map = calloc(map->block_capacity, sizeof(struct block *));
+    assert(map->map);
 }
 
 /* clear all block in the block map */
@@ -88,14 +89,14 @@ riscv_word_t rv_get_pc(riscv_t *rv)
     return rv->PC;
 }
 
-void rv_set_reg(riscv_t *rv, uint32_t reg, riscv_word_t in)
+void rv_set_reg(riscv_t *rv, riscv_word_t reg, riscv_word_t in)
 {
     assert(rv);
     if (reg < N_RV_REGS && reg != rv_reg_zero)
         rv->X[reg] = in;
 }
 
-riscv_word_t rv_get_reg(riscv_t *rv, uint32_t reg)
+riscv_word_t rv_get_reg(riscv_t *rv, riscv_word_t reg)
 {
     assert(rv);
     if (reg < N_RV_REGS)
@@ -104,23 +105,29 @@ riscv_word_t rv_get_reg(riscv_t *rv, uint32_t reg)
     return ~0U;
 }
 
-riscv_t *rv_create(const riscv_io_t *io,
-                   riscv_user_t userdata,
-                   int argc,
-                   char **args,
-                   bool output_exit_code)
+riscv_t *rv_create(riscv_user_t userdata)
 {
-    assert(io);
-
     riscv_t *rv = calloc(1, sizeof(riscv_t));
-
-    /* copy over the IO interface */
-    memcpy(&rv->io, io, sizeof(riscv_io_t));
+    assert(rv);
 
     /* copy over the userdata */
     rv->userdata = userdata;
 
-    rv->output_exit_code = output_exit_code;
+    /* register memory and system handler */
+    rv->io.mem_ifetch = memory_ifetch;
+    rv->io.mem_read_w = memory_read_w;
+    rv->io.mem_read_s = memory_read_s;
+    rv->io.mem_read_b = memory_read_b;
+    rv->io.mem_write_w = memory_write_w;
+    rv->io.mem_write_s = memory_write_s;
+    rv->io.mem_write_b = memory_write_b;
+    rv->io.on_ecall = ecall_handler;
+    rv->io.on_ebreak = ebreak_handler;
+    rv->io.on_memset = memset_handler;
+    rv->io.on_memcpy = memcpy_handler;
+    rv->io.allow_misalign = ((state_t *) rv->userdata)->allow_misalign;
+
+    rv->output_exit_code = ((state_t *) rv->userdata)->quiet_output;
 
     /* create block and IRs memory pool */
     rv->block_mp = mpool_create(sizeof(block_t) << BLOCK_MAP_CAPACITY_BITS,
@@ -132,11 +139,11 @@ riscv_t *rv_create(const riscv_io_t *io,
     /* initialize the block map */
     block_map_init(&rv->block_map, BLOCK_MAP_CAPACITY_BITS);
 #else
-    rv->jit_state = init_state(CODE_CACHE_SIZE);
+    rv->jit_state = jit_state_init(CODE_CACHE_SIZE);
     rv->block_cache = cache_create(BLOCK_MAP_CAPACITY_BITS);
 #endif
     /* reset */
-    rv_reset(rv, 0U, argc, args);
+    rv_reset(rv, 0U);
 
     return rv;
 }
@@ -162,13 +169,13 @@ void rv_delete(riscv_t *rv)
 #if !RV32_HAS(JIT)
     block_map_destroy(rv);
 #else
-    destroy_state(rv->jit_state);
+    jit_state_exit(rv->jit_state);
     cache_free(rv->block_cache);
 #endif
     free(rv);
 }
 
-void rv_reset(riscv_t *rv, riscv_word_t pc, int argc, char **args)
+void rv_reset(riscv_t *rv, riscv_word_t pc)
 {
     assert(rv);
     memset(rv->X, 0, sizeof(uint32_t) * N_RV_REGS);
@@ -212,6 +219,8 @@ void rv_reset(riscv_t *rv, riscv_word_t pc, int argc, char **args)
      */
 
     state_t *s = rv_userdata(rv);
+    int argc = s->argc;
+    char **args = s->argv;
 
     /* copy args to RAM */
     uintptr_t args_size = (1 + argc + 1) * sizeof(uint32_t);
@@ -294,16 +303,24 @@ void rv_reset(riscv_t *rv, riscv_word_t pc, int argc, char **args)
     rv->halt = false;
 }
 
-state_t *state_new(uint32_t mem_size)
+state_t *state_new(uint32_t mem_size,
+		int argc,
+		char **argv,
+		bool allow_misalign,
+		bool quiet_output)
 {
     state_t *s = malloc(sizeof(state_t));
     assert(s);
     s->mem = memory_new(mem_size);
     s->break_addr = 0;
+    s->argc = argc;
+    s->argv = argv;
+    s->allow_misalign = allow_misalign;
+    s->quiet_output = quiet_output;
 
     s->fd_map = map_init(int, FILE *, map_cmp_int);
     FILE *files[] = {stdin, stdout, stderr};
-    for (size_t i = 0; i < ARRAYS_SIZE(files); i++)
+    for (size_t i = 0; i < 3; i++)
         map_insert(s->fd_map, &i, &files[i]);
 
     return s;

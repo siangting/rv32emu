@@ -56,11 +56,11 @@ static inline void memory_write(memory_t *m,
     memcpy(m->mem_base + addr, src, size);
 }
 
-void memory_write_w(uint32_t addr, const uint8_t *src);
+void memory_write_w(uint32_t addr, const uint32_t src);
 
-void memory_write_s(uint32_t addr, const uint8_t *src);
+void memory_write_s(uint32_t addr, const uint16_t src);
 
-void memory_write_b(uint32_t addr, const uint8_t *src);
+void memory_write_b(uint32_t addr, const uint8_t src);
 
 static inline void memory_fill(memory_t *m,
                                uint32_t addr,

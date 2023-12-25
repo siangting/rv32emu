@@ -165,8 +165,8 @@ static void syscall_gettimeofday(riscv_t *rv)
     if (tv) {
         struct timeval tv_s;
         rv_gettimeofday(&tv_s);
-        memory_write_w(tv + 0, (const uint8_t *) &tv_s.tv_sec);
-        memory_write_w(tv + 8, (const uint8_t *) &tv_s.tv_usec);
+        memory_write_w(tv + 0, *((const uint32_t *) &tv_s.tv_sec));
+        memory_write_w(tv + 8, *((const uint32_t *) &tv_s.tv_usec));
     }
 
     if (tz) {
@@ -197,8 +197,8 @@ static void syscall_clock_gettime(riscv_t *rv)
     if (tp) {
         struct timespec tp_s;
         rv_clock_gettime(&tp_s);
-        memory_write_w(tp + 0, (const uint8_t *) &tp_s.tv_sec);
-        memory_write_w(tp + 8, (const uint8_t *) &tp_s.tv_nsec);
+        memory_write_w(tp + 0, *((const uint32_t *) &tp_s.tv_sec));
+        memory_write_w(tp + 8, *((const uint32_t *) &tp_s.tv_nsec));
     }
 
     /* success */

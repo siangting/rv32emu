@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include <stdio.h>
 #include <stdbool.h>
 #include <stdint.h>
 
@@ -148,17 +149,13 @@ typedef struct {
 } riscv_io_t;
 
 /* create a RISC-V emulator */
-riscv_t *rv_create(const riscv_io_t *io,
-                   riscv_user_t user_data,
-                   int argc,
-                   char **args,
-                   bool output_exit_code);
+riscv_t *rv_create(riscv_user_t user_data);
 
 /* delete a RISC-V emulator */
 void rv_delete(riscv_t *rv);
 
 /* reset the RISC-V processor */
-void rv_reset(riscv_t *rv, riscv_word_t pc, int argc, char **args);
+void rv_reset(riscv_t *rv, riscv_word_t pc);
 
 #if RV32_HAS(GDBSTUB)
 /* Run the RISC-V emulator as gdbstub */
@@ -178,10 +175,10 @@ bool rv_set_pc(riscv_t *rv, riscv_word_t pc);
 riscv_word_t rv_get_pc(riscv_t *rv);
 
 /* set a register of the RISC-V emulator */
-void rv_set_reg(riscv_t *rv, uint32_t reg, riscv_word_t in);
+void rv_set_reg(riscv_t *rv, riscv_word_t reg, riscv_word_t in);
 
 /* get a register of the RISC-V emulator */
-riscv_word_t rv_get_reg(riscv_t *rv, uint32_t reg);
+riscv_word_t rv_get_reg(riscv_t *rv, riscv_word_t reg);
 
 /* system call handler */
 void syscall_handler(riscv_t *rv);
@@ -219,10 +216,24 @@ typedef struct {
 
     /* file descriptor map: int -> (FILE *) */
     map_t fd_map;
+
+    /* target program arguments */
+    int argc;
+    char **argv;
+
+    /* enable misalign memory access */
+    bool allow_misalign;
+
+    /* enable show program exit code  */
+    bool quiet_output;
 } state_t;
 
 /* create a state */
-state_t *state_new(uint32_t mem_size);
+state_t *state_new(uint32_t mem_size,
+		   int argc,
+		   char **argv,
+		   bool allow_misalign,
+		   bool quiet_output);
 
 /* delete a state */
 void state_delete(state_t *s);

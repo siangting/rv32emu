@@ -3,6 +3,7 @@
  * "LICENSE" for information on usage and redistribution of this file.
  */
 
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -41,31 +42,6 @@ static const char *optstr = "tgqmhd:a:";
 
 /* enable misaligned memory access */
 static bool opt_misaligned = false;
-
-#define MEMIO(op) on_mem_##op
-#define IO_HANDLER_IMPL(type, op, RW)                                     \
-    IIF(RW)(                                                       \
-        /* W */ void MEMIO(op)(riscv_word_t addr, riscv_##type##_t data), \
-        /* R */ riscv_##type##_t MEMIO(op)(riscv_word_t addr))            \
-    {                                                                     \
-        IIF(RW)                                                           \
-        (memory_##op(addr, (uint8_t *) &data), return memory_##op(addr)); \
-    }
-
-#define R 0
-#define W 1
-
-IO_HANDLER_IMPL(word, ifetch, R)
-IO_HANDLER_IMPL(word, read_w, R)
-IO_HANDLER_IMPL(half, read_s, R)
-IO_HANDLER_IMPL(byte, read_b, R)
-
-IO_HANDLER_IMPL(word, write_w, W)
-IO_HANDLER_IMPL(half, write_s, W)
-IO_HANDLER_IMPL(byte, write_b, W)
-
-#undef R
-#undef W
 
 /* run: printing out an instruction trace */
 static void run_and_trace(riscv_t *rv, elf_t *elf)
@@ -201,28 +177,7 @@ int main(int argc, char **args)
         return 1;
     }
 
-    /* install the I/O handlers for the RISC-V runtime */
-    const riscv_io_t io = {
-        /* memory read interface */
-        .mem_ifetch = MEMIO(ifetch),
-        .mem_read_w = MEMIO(read_w),
-        .mem_read_s = MEMIO(read_s),
-        .mem_read_b = MEMIO(read_b),
-
-        /* memory write interface */
-        .mem_write_w = MEMIO(write_w),
-        .mem_write_s = MEMIO(write_s),
-        .mem_write_b = MEMIO(write_b),
-
-        /* system */
-        .on_ecall = ecall_handler,
-        .on_ebreak = ebreak_handler,
-        .on_memcpy = memcpy_handler,
-        .on_memset = memset_handler,
-        .allow_misalign = opt_misaligned,
-    };
-
-    state_t *state = state_new(MEM_SIZE);
+    state_t *state = state_new(MEM_SIZE, prog_argc, prog_args, opt_misaligned, opt_quiet_outputs);
 
     /* find the start of the heap */
     const struct Elf32_Sym *end;
@@ -230,15 +185,14 @@ int main(int argc, char **args)
         state->break_addr = end->st_value;
 
     /* create the RISC-V runtime */
-    riscv_t *rv =
-        rv_create(&io, state, prog_argc, prog_args, !opt_quiet_outputs);
+    riscv_t *rv = rv_create(state);
     if (!rv) {
         fprintf(stderr, "Unable to create riscv emulator\n");
         return 1;
     }
 
     /* load the ELF file into the memory abstraction */
-    if (!elf_load(elf, rv, state->mem)) {
+    if (!elf_load(elf, rv)) {
         fprintf(stderr, "Unable to load ELF file '%s'\n", args[1]);
         return 1;
     }

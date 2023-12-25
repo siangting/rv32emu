@@ -84,9 +84,9 @@ MEM_READ_IMPL(s, uint16_t)
 MEM_READ_IMPL(b, uint8_t)
 
 #define MEM_WRITE_IMPL(size, type)                                 \
-    void memory_write_##size(uint32_t addr, const uint8_t *src)    \
+    void memory_write_##size(uint32_t addr, const type src)    \
     {                                                              \
-        *(type *) (data_memory_base + addr) = *(const type *) src; \
+        *(type *) (data_memory_base + addr) = src; \
     }
 
 MEM_WRITE_IMPL(w, uint32_t)

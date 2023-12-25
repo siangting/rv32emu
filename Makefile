@@ -175,10 +175,7 @@ EMCC_CFLAGS :=
 ifeq ("$(CC_IS_EMCC)", "1")
 EXPORTED_FUNCS += _malloc,_free, \
 				 _elf_new,_elf_delete,_elf_open,_elf_get_symbol,_elf_load, \
-				 _state_new,_state_delete,_rv_create,_rv_delete,_rv_has_halted,_rv_step, \
-				 _on_mem_ifetch,_on_mem_read_w,_on_mem_read_s,_on_mem_read_b,\
-				 _on_mem_write_w,_on_mem_write_s,_on_mem_write_b,\
-				 _ecall_handler,_ebreak_handler,_memcpy_handler,_memset_handler
+				 _state_new,_state_delete,_rv_create,_rv_delete,_rv_has_halted,_rv_step
 EMCC_CFLAGS += -sINITIAL_MEMORY=2GB --embed-file build --pre-js pre.js \
 				-s"EXPORTED_FUNCTIONS=$(EXPORTED_FUNCS)" \
 				-sEXPORTED_RUNTIME_METHODS=getValue,setValue,stringToNewUTF8,addFunction \

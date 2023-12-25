@@ -3,11 +3,13 @@
  * "LICENSE" for information on usage and redistribution of this file.
  */
 
+#include <assert.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include "elf.h"
 #include "io.h"
+#include "riscv.h"
 #include "utils.h"
 
 #if HAVE_MMAP
@@ -70,6 +72,7 @@ struct elf_internal {
 elf_t *elf_new(void)
 {
     elf_t *e = malloc(sizeof(elf_t));
+    assert(e);
     e->hdr = NULL;
     e->raw_size = 0;
     e->symbols = map_init(int, char *, map_cmp_uint);
@@ -257,11 +260,14 @@ bool elf_get_data_section_range(elf_t *e, uint32_t *start, uint32_t *end)
  * Finding data for section headers:
  *   File start + section_header.offset -> section Data
  */
-bool elf_load(elf_t *e, riscv_t *rv, memory_t *mem)
+bool elf_load(elf_t *e, riscv_t *rv)
 {
     /* set the entry point */
     if (!rv_set_pc(rv, e->hdr->e_entry))
         return false;
+
+    state_t *s = rv_userdata(rv);
+    memory_t *mem = s->mem;
 
     /* loop over all of the program headers */
     for (int p = 0; p < e->hdr->e_phnum; ++p) {
@@ -342,6 +348,7 @@ bool elf_open(elf_t *e, const char *input)
     /* allocate memory */
     free(e->raw_data);
     e->raw_data = malloc(e->raw_size);
+    assert(e->raw_data);
 
     /* read data into memory */
     const size_t r = fread(e->raw_data, 1, e->raw_size, f);
