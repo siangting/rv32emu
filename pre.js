@@ -21,7 +21,7 @@ Module['onRuntimeInitialized'] = function(target_elf) {
     var rv = Module._rv_create(state);
 
     var mem = Module.getValue(state, "i8*");
-    var elf_load_ret = Module._elf_load(elf, rv, mem);
+    var elf_load_ret = Module._elf_load(elf, rv);
     if(!elf_load_ret) {
         console.log("elf load failed");
         return;
