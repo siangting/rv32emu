@@ -15,8 +15,8 @@ Module['onRuntimeInitialized'] = function(target_elf) {
     var state = Module._state_new(64 * 128 * 1024);
     Module.setValue(state + 12, 0, "i32");
     Module.setValue(state + 16, 0, "i32");
-    Module.setValue(state + 20, 0, "i32");
-    Module.setValue(state + 24, 0, "i32");
+    Module.setValue(state + 20, 0, "i8");
+    Module.setValue(state + 21, 1, "i8");
 
     var rv = Module._rv_create(state);
 
