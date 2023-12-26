@@ -189,6 +189,8 @@ $(OUT)/%.o: src/%.c
 $(BIN): $(OBJS)
 	$(VECHO) "  LD\t$@\n"
 	$(Q)$(CC) -o $@ $(EMCC_CFLAGS) $^ $(LDFLAGS)
+	mv build/rv32emu.wasm docs
+	mv build/rv32emu.js docs
 
 config: $(CONFIG_FILE)
 $(CONFIG_FILE):
@@ -214,7 +216,7 @@ CHECK_ELF_FILES += \
 endif
 
 serve-wasm:
-	python3 -m http.server 8000 --directory build
+	python3 -m http.server 8000 --directory docs
 
 EXPECTED_hello = Hello World!
 EXPECTED_puzzle = success in 2005 trials
