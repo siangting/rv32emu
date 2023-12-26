@@ -1004,10 +1004,18 @@ typedef void (*exec_block_func_t)(riscv_t *rv, uintptr_t);
 #endif
 
 //void rv_step(riscv_t *rv, int32_t cycles)
+
+#ifdef __EMSCRIPTEN__
 void rv_step(void *arg)
+#else
+void rv_step(riscv_t *rv, uint32_t cycles)
+#endif
 {
-    //assert(rv);
+
+#ifdef __EMSCRIPTEN__
     riscv_t *rv = (riscv_t *) arg;
+    assert(rv);
+
     state_t *s = rv_userdata(rv);
     uint32_t cycles = s->cycles;
 
@@ -1015,6 +1023,9 @@ void rv_step(void *arg)
     	emscripten_cancel_main_loop();
 	return;
     }
+#else
+    assert(rv);
+#endif
 
     /* find or translate a block for starting PC */
     const uint64_t cycles_target = rv->csr_cycle + cycles;

@@ -169,7 +169,11 @@ void rv_debug(riscv_t *rv);
 #endif
 
 /* step the RISC-V emulator */
+#ifdef __EMSCRIPTEN__
 void rv_step(void *arg);
+#else
+void rv_step(riscv_t *rv, uint32_t cycles);
+#endif
 
 /* get RISC-V user data bound to an emulator */
 riscv_user_t rv_userdata(riscv_t *rv);
