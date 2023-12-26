@@ -307,7 +307,8 @@ state_t *state_new(uint32_t mem_size,
 		int argc,
 		char **argv,
 		bool allow_misalign,
-		bool quiet_output)
+		bool quiet_output,
+		uint32_t cycles)
 {
     state_t *s = malloc(sizeof(state_t));
     assert(s);
@@ -317,6 +318,7 @@ state_t *state_new(uint32_t mem_size,
     s->argv = argv;
     s->allow_misalign = allow_misalign;
     s->quiet_output = quiet_output;
+    s->cycles = cycles;
 
     s->fd_map = map_init(int, FILE *, map_cmp_int);
     FILE *files[] = {stdin, stdout, stderr};
@@ -334,4 +336,8 @@ void state_delete(state_t *s)
     map_delete(s->fd_map);
     memory_delete(s->mem);
     free(s);
+}
+
+void test(state_t *s){
+	printf("from test output queit: %d\n", s->quiet_output);
 }

@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdlib.h>
 
 #include "io.h"
 #include "map.h"
@@ -110,6 +111,11 @@ typedef uint32_t riscv_exception_t;
 typedef softfloat_float32_t riscv_float_t;
 #endif
 
+typedef struct {
+	riscv_t *rv;
+	uint32_t cycle;
+} emcc_t;
+
 /* memory read handlers */
 typedef riscv_word_t (*riscv_mem_ifetch)(riscv_word_t addr);
 typedef riscv_word_t (*riscv_mem_read_w)(riscv_word_t addr);
@@ -163,7 +169,7 @@ void rv_debug(riscv_t *rv);
 #endif
 
 /* step the RISC-V emulator */
-void rv_step(riscv_t *rv, int32_t cycles);
+void rv_step(void *arg);
 
 /* get RISC-V user data bound to an emulator */
 riscv_user_t rv_userdata(riscv_t *rv);
@@ -226,6 +232,9 @@ typedef struct {
 
     /* enable show program exit code  */
     bool quiet_output;
+
+    /* cycles per step */
+    uint32_t cycles;
 } state_t;
 
 /* create a state */
@@ -233,10 +242,13 @@ state_t *state_new(uint32_t mem_size,
 		   int argc,
 		   char **argv,
 		   bool allow_misalign,
-		   bool quiet_output);
+		   bool quiet_output,
+		   uint32_t cycles);
 
 /* delete a state */
 void state_delete(state_t *s);
+
+void test(state_t *s);
 
 #ifdef __cplusplus
 };

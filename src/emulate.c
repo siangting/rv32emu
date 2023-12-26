@@ -3,6 +3,10 @@
  * "LICENSE" for information on usage and redistribution of this file.
  */
 
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+#endif
+
 #include <assert.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -999,9 +1003,18 @@ static block_t *block_find_or_translate(riscv_t *rv)
 typedef void (*exec_block_func_t)(riscv_t *rv, uintptr_t);
 #endif
 
-void rv_step(riscv_t *rv, int32_t cycles)
+//void rv_step(riscv_t *rv, int32_t cycles)
+void rv_step(void *arg)
 {
-    assert(rv);
+    //assert(rv);
+    riscv_t *rv = (riscv_t *) arg;
+    state_t *s = rv_userdata(rv);
+    uint32_t cycles = s->cycles;
+
+    if(rv_has_halted(rv)){
+    	emscripten_cancel_main_loop();
+	return;
+    }
 
     /* find or translate a block for starting PC */
     const uint64_t cycles_target = rv->csr_cycle + cycles;

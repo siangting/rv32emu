@@ -4,6 +4,7 @@ Module['onRuntimeInitialized'] = function(target_elf) {
     if(target_elf === undefined)
       return;
 
+    var state = Module._state_new(64 * 128 * 1024);
     var opt_prog_name = stringToNewUTF8(`build/${target_elf}`);
     var elf = Module._elf_new();
     var file = Module._elf_open(elf, opt_prog_name);
@@ -12,11 +13,11 @@ Module['onRuntimeInitialized'] = function(target_elf) {
       Module.setValue(state + 4, Module.getValue(end + 4), "i32");
     }
 
-    var state = Module._state_new(64 * 128 * 1024);
     Module.setValue(state + 12, 0, "i32");
     Module.setValue(state + 16, 0, "i32");
     Module.setValue(state + 20, 0, "i8");
     Module.setValue(state + 21, 1, "i8");
+    Module.setValue(state + 24, 100, "i32");
 
     var rv = Module._rv_create(state);
 
@@ -27,10 +28,13 @@ Module['onRuntimeInitialized'] = function(target_elf) {
         return;
     }
 
+    Module._run(rv);
+	/*
     var cycle_per_step = 100;
     for(; !Module._rv_has_halted(rv);){
       Module._rv_step(rv,cycle_per_step);
     }
+    */
 
     Module._elf_delete(elf);
     Module._rv_delete(rv);
