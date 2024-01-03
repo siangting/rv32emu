@@ -166,7 +166,7 @@ void rv_debug(riscv_t *rv);
 #endif
 
 /* step the RISC-V emulator */
-void rv_step(riscv_t *rv, int32_t cycles);
+void rv_step(void *arg);
 
 /* get RISC-V user data bound to an emulator */
 riscv_user_t rv_userdata(riscv_t *rv);
@@ -219,6 +219,8 @@ typedef struct {
 
     /* file descriptor map: int -> (FILE *) */
     map_t fd_map;
+
+    uint32_t cycle_per_step;
 } state_t;
 
 /* create a state */

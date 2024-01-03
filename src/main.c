@@ -8,6 +8,10 @@
 #include <string.h>
 #include <unistd.h>
 
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+#endif
+
 #include "elf.h"
 #include "riscv.h"
 #include "utils.h"
@@ -70,8 +74,6 @@ IO_HANDLER_IMPL(byte, write_b, W)
 /* run: printing out an instruction trace */
 static void run_and_trace(riscv_t *rv, elf_t *elf)
 {
-    const uint32_t cycles_per_step = 1;
-
     for (; !rv_has_halted(rv);) { /* run until the flag is done */
         /* trace execution */
         uint32_t pc = rv_get_pc(rv);
@@ -79,17 +81,24 @@ static void run_and_trace(riscv_t *rv, elf_t *elf)
         printf("%08x  %s\n", pc, (sym ? sym : ""));
 
         /* step instructions */
-        rv_step(rv, cycles_per_step);
+        rv_step(rv);
     }
 }
 
 static void run(riscv_t *rv)
 {
-    const uint32_t cycles_per_step = 100;
-    for (; !rv_has_halted(rv);) { /* run until the flag is done */
-        /* step instructions */
-        rv_step(rv, cycles_per_step);
+#ifdef __EMSCRIPTEN__
+    emscripten_set_main_loop_arg(rv_step, (void *) rv, 60, 1);
+#else
+    for(; !rv_has_halted(rv);){
+            rv_step(rv);
     }
+#endif
+    //const uint32_t cycles_per_step = 100;
+    //for (; !rv_has_halted(rv);) { /* run until the flag is done */
+    //    /* step instructions */
+    //    rv_step(rv, cycles_per_step);
+    //}
 }
 
 static void print_usage(const char *filename)
@@ -223,6 +232,7 @@ int main(int argc, char **args)
     };
 
     state_t *state = state_new(MEM_SIZE);
+    state->cycle_per_step = 100;
 
     /* find the start of the heap */
     const struct Elf32_Sym *end;

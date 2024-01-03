@@ -17,7 +17,7 @@
  * because most of the test cases' data memory usage will not exceed this
  * memory size.
  */
-#define MEM_SIZE 0xFFFFFFFFULL
+#define MEM_SIZE (64*128*1024*64) //0xFFFFFFFFULL
 
 typedef struct {
     uint8_t *mem_base;
