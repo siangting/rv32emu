@@ -133,7 +133,10 @@ endif
 
 # Enable tail-call for emcc
 ifeq ("$(CC_IS_EMCC)", "1")
-CFLAGS += -mtail-call -sUSE_SDL=2 -sUSE_SDL_MIXER=2 -sSDL2_MIXER_FORMATS=wav,mid
+CFLAGS += -mtail-call -sUSE_SDL=2 \
+	 -sSDL2_MIXER_FORMATS=wav,mid \
+	 -sUSE_SDL_MIXER=2
+LDFLAGS += -sUSE_SDL=2 -sSDL2_MIXER_FORMATS=wav,mid -sUSE_SDL_MIXER=2
 endif
 
 ENABLE_UBSAN ?= 0
@@ -180,7 +183,7 @@ EXPORTED_FUNCS += _main,_malloc,_free, \
 				 _on_mem_ifetch,_on_mem_read_w,_on_mem_read_s,_on_mem_read_b,\
 				 _on_mem_write_w,_on_mem_write_s,_on_mem_write_b,\
 				 _ecall_handler,_ebreak_handler,_memcpy_handler,_memset_handler
-EMCC_CFLAGS += -sINITIAL_MEMORY=2GB -sMAXIMUM_MEMORY=4GB --embed-file build --embed-file build/DOOM1.WAD@DOOM1.WAD --embed-file build/doomrc@doomrc --pre-js pre.js \
+EMCC_CFLAGS += -sINITIAL_MEMORY=2GB -sMAXIMUM_MEMORY=4GB --embed-file build --embed-file build/DOOM1.WAD@DOOM1.WAD --embed-file build/doomrc@doomrc --embed-file build/id1@id1 --embed-file build/timidity@/etc/timidity --pre-js pre.js \
 				-s"EXPORTED_FUNCTIONS=$(EXPORTED_FUNCS)" \
 				-sEXPORTED_RUNTIME_METHODS=getValue,setValue,stringToNewUTF8,addFunction \
 				-sALLOW_TABLE_GROWTH \
@@ -190,7 +193,7 @@ EMCC_CFLAGS += -sINITIAL_MEMORY=2GB -sMAXIMUM_MEMORY=4GB --embed-file build --em
 				-sPTHREAD_POOL_SIZE=8
 endif
 
-DEBUG_FLAG := -g
+DEBUG_FLAG := -g #-O2
 
 $(OUT)/%.o: src/%.c
 	$(VECHO) "  CC\t$@\n"
@@ -267,7 +270,7 @@ endif
 endif
 
 clean:
-	$(RM) $(BIN) $(OBJS) $(HIST_BIN) $(HIST_OBJS) $(deps) $(CACHE_OUT) src/rv32_jit_template.c build/rv32emu.js build/rv32emu.wasm
+	$(RM) $(BIN) $(OBJS) $(HIST_BIN) $(HIST_OBJS) $(deps) $(CACHE_OUT) src/rv32_jit_template.c build/rv32emu.js build/rv32emu.wasm build/rv32emu.worker.js
 distclean: clean
 	-$(RM) $(DOOM_DATA) $(QUAKE_DATA)
 	$(RM) -r $(OUT)/id1
