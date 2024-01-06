@@ -232,7 +232,7 @@ int main(int argc, char **args)
     };
 
     state_t *state = state_new(MEM_SIZE);
-    state->cycle_per_step = 100;
+    state->cycle_per_step = 2000000;
 
     /* find the start of the heap */
     const struct Elf32_Sym *end;
