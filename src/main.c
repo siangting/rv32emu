@@ -88,7 +88,7 @@ static void run_and_trace(riscv_t *rv, elf_t *elf)
 static void run(riscv_t *rv)
 {
 #ifdef __EMSCRIPTEN__
-    emscripten_set_main_loop_arg(rv_step, (void *) rv, 60, 1);
+    emscripten_set_main_loop_arg(rv_step, (void *) rv, 0, 1);
 #else
     for(; !rv_has_halted(rv);){
             rv_step(rv);

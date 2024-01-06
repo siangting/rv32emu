@@ -701,6 +701,7 @@ static void play_sfx(riscv_t *rv)
         .volume = volume,
     };
     pthread_create(&sfx_thread, NULL, sfx_handler, &sfx);
+    pthread_join(sfx_thread, NULL);
 }
 
 static void play_music(riscv_t *rv)
@@ -731,6 +732,7 @@ static void play_music(riscv_t *rv)
         .volume = volume,
     };
     pthread_create(&music_thread, NULL, music_handler, &music);
+    pthread_join(music_thread, NULL);
 }
 
 static void stop_music(riscv_t *rv UNUSED)
