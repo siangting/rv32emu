@@ -217,6 +217,9 @@ CHECK_ELF_FILES += \
 	pi
 endif
 
+serve-wasm:
+	python3 -m http.server 8000 --directory build
+
 EXPECTED_hello = Hello World!
 EXPECTED_puzzle = success in 2005 trials
 EXPECTED_fcalc = Performed 12 tests, 0 failures, 100% success rate.
