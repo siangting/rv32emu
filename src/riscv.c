@@ -8,6 +8,10 @@
 #include <stdlib.h>
 #include <string.h>
 
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+#endif
+
 #if !defined(_WIN32) && !defined(_WIN64)
 #include <unistd.h>
 #define FILENO(x) fileno(x)
@@ -280,7 +284,6 @@ static void rv_run_and_trace(riscv_t *rv)
     const char *prog_name = attr->data.user->elf_program;
     elf_t *elf = elf_new();
     assert(elf && elf_open(elf, prog_name));
-    const uint32_t cycles_per_step = 1;
 
     for (; !rv_has_halted(rv);) { /* run until the flag is done */
         /* trace execution */
@@ -288,7 +291,7 @@ static void rv_run_and_trace(riscv_t *rv)
         const char *sym = elf_find_symbol(elf, pc);
         printf("%08x  %s\n", pc, (sym ? sym : ""));
 
-        rv_step(rv, cycles_per_step); /* step instructions */
+        rv_step(rv); /* step instructions */
     }
 
     elf_delete(elf);
@@ -315,9 +318,16 @@ void rv_run(riscv_t *rv)
         rv_debug(rv);
 #endif
     else {
-        /* default main loop */
-        for (; !rv_has_halted(rv);)            /* run until the flag is done */
-            rv_step(rv, attr->cycle_per_step); /* step instructions */
+//        /* default main loop */
+//        for (; !rv_has_halted(rv);)            /* run until the flag is done */
+//            rv_step(rv); /* step instructions */
+#ifdef __EMSCRIPTEN__
+	    emscripten_set_main_loop_arg(rv_step, (void *) rv, 0, 1);
+#else
+	    for(; !rv_has_halted(rv);){
+		    rv_step(rv);
+	    }
+#endif
     }
 
     if (attr->run_flag & RV_RUN_PROFILE) {

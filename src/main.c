@@ -172,7 +172,8 @@ static void dump_test_signature(const char *prog_name)
     elf_delete(elf);
 }
 
-#define MEM_SIZE 0xFFFFFFFFULL  /* 2^32 - 1 */
+#define MEM_SIZE 64 * 128 * 1024
+//#define MEM_SIZE 0xFFFFFFFFULL  /* 2^32 - 1 */
 #define STACK_SIZE 0x1000       /* 4096 */
 #define ARGS_OFFSET_SIZE 0x1000 /* 4096 */
 
@@ -200,7 +201,7 @@ int main(int argc, char **args)
         .run_flag = run_flag,
         .profile_output_file = prof_out_file,
         .data.user = malloc(sizeof(vm_user_t)),
-        .cycle_per_step = 100,
+        .cycle_per_step = 2000000,
         .allow_misalign = opt_misaligned,
     };
     assert(attr.data.user);

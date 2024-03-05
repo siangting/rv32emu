@@ -21,7 +21,7 @@ endif
 endif
 $(call set-feature, LTO)
 ifeq ($(call has, LTO), 1)
-ifeq ("$(CC_IS_GCC)$(CC_IS_EMCC)", "1")
+ifeq ("$(CC_IS_GCC)", "1")
 CFLAGS += -flto
 endif
 ifeq ("$(CC_IS_CLANG)", "1")
@@ -179,11 +179,8 @@ EMCC_CFLAGS :=
 ifeq ("$(CC_IS_EMCC)", "1")
 EXPORTED_FUNCS += _main,_malloc,_free, \
 				 _elf_new,_elf_delete,_elf_open,_elf_get_symbol,_elf_load, \
-				 _state_new,_state_delete,_rv_create,_rv_delete,_rv_has_halted,_rv_step, \
-				 _on_mem_ifetch,_on_mem_read_w,_on_mem_read_s,_on_mem_read_b,\
-				 _on_mem_write_w,_on_mem_write_s,_on_mem_write_b,\
-				 _ecall_handler,_ebreak_handler,_memcpy_handler,_memset_handler
-EMCC_CFLAGS += -sINITIAL_MEMORY=2GB --embed-file build --embed-file build/DOOM1.WAD@DOOM1.WAD --embed-file build/doomrc@doomrc --embed-file build/id1@id1 --embed-file build/timidity@/etc/timidity --pre-js pre.js \
+				 _rv_create,_rv_delete,_rv_has_halted,_rv_step
+EMCC_CFLAGS += -sINITIAL_MEMORY=2GB --embed-file build --embed-file build/DOOM1.WAD@DOOM1.WAD --embed-file build/doomrc@doomrc --embed-file build/id1@id1 --embed-file build/timidity@/etc/timidity --embed-file build/smolnes.elf@smolnes.elf --pre-js pre.js \
 				-s"EXPORTED_FUNCTIONS=$(EXPORTED_FUNCS)" \
 				-sEXPORTED_RUNTIME_METHODS=getValue,setValue,stringToNewUTF8,addFunction \
 				-sALLOW_TABLE_GROWTH \

@@ -1072,8 +1072,8 @@ void rv_step(void *arg)
 {
     riscv_t *rv = (riscv_t *) arg;
     assert(rv);
-    state_t *s = rv_userdata(rv);
-    uint32_t cycles = s->cycle_per_step;
+    vm_attr_t *attr = PRIV(rv);
+    uint32_t cycles = attr->cycle_per_step;
 
     /* find or translate a block for starting PC */
     const uint64_t cycles_target = rv->csr_cycle + cycles;
