@@ -11,6 +11,10 @@
 #include <string.h>
 #include <unistd.h>
 
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+#endif
+
 #include "elf.h"
 #include "riscv.h"
 #include "utils.h"

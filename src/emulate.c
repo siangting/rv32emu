@@ -1068,9 +1068,12 @@ static bool runtime_profiler(riscv_t *rv, block_t *block)
 typedef void (*exec_block_func_t)(riscv_t *rv, uintptr_t);
 #endif
 
-void rv_step(riscv_t *rv, int32_t cycles)
+void rv_step(void *arg)
 {
+    riscv_t *rv = (riscv_t *) arg;
     assert(rv);
+    state_t *s = rv_userdata(rv);
+    uint32_t cycles = s->cycle_per_step;
 
     /* find or translate a block for starting PC */
     const uint64_t cycles_target = rv->csr_cycle + cycles;

@@ -133,7 +133,7 @@ endif
 
 # Enable tail-call for emcc
 ifeq ("$(CC_IS_EMCC)", "1")
-CFLAGS += -mtail-call
+CFLAGS += -mtail-call -sUSE_SDL=2 -sUSE_SDL_MIXER=2 -sSDL2_MIXER_FORMATS=wav,mid
 endif
 
 ENABLE_UBSAN ?= 0
@@ -174,25 +174,34 @@ deps := $(OBJS:%.o=%.o.d)
 
 EMCC_CFLAGS :=
 ifeq ("$(CC_IS_EMCC)", "1")
-EXPORTED_FUNCS += _malloc,_free, \
+EXPORTED_FUNCS += _main,_malloc,_free, \
 				 _elf_new,_elf_delete,_elf_open,_elf_get_symbol,_elf_load, \
 				 _state_new,_state_delete,_rv_create,_rv_delete,_rv_has_halted,_rv_step, \
 				 _on_mem_ifetch,_on_mem_read_w,_on_mem_read_s,_on_mem_read_b,\
 				 _on_mem_write_w,_on_mem_write_s,_on_mem_write_b,\
 				 _ecall_handler,_ebreak_handler,_memcpy_handler,_memset_handler
-EMCC_CFLAGS += -sINITIAL_MEMORY=2GB --embed-file build --pre-js pre.js \
+EMCC_CFLAGS += -sINITIAL_MEMORY=2GB -sMAXIMUM_MEMORY=4GB --embed-file build --embed-file build/DOOM1.WAD@DOOM1.WAD --embed-file build/doomrc@doomrc --pre-js pre.js \
 				-s"EXPORTED_FUNCTIONS=$(EXPORTED_FUNCS)" \
 				-sEXPORTED_RUNTIME_METHODS=getValue,setValue,stringToNewUTF8,addFunction \
-				-sALLOW_TABLE_GROWTH
+				-sALLOW_TABLE_GROWTH \
+				-sALLOW_MEMORY_GROWTH \
+				-sSTACK_SIZE=4MB \
+				-sUSE_PTHREADS \
+				-sPTHREAD_POOL_SIZE=8
 endif
+
+DEBUG_FLAG := -g
 
 $(OUT)/%.o: src/%.c
 	$(VECHO) "  CC\t$@\n"
-	$(Q)$(CC) -o $@ $(CFLAGS) -c -MMD -MF $@.d $<
+	$(Q)$(CC) -o $@ $(CFLAGS) $(DEBUG_FLAG) -c -MMD -MF $@.d $<
 
 $(BIN): $(OBJS)
 	$(VECHO) "  LD\t$@\n"
-	$(Q)$(CC) -o $@ $(EMCC_CFLAGS) $^ $(LDFLAGS)
+	$(Q)$(CC) -o $@ $(EMCC_CFLAGS) $(DEBUG_FLAG) $^ $(LDFLAGS)
+	cp build/rv32emu.wasm /opt/homebrew/var/www
+	cp build/rv32emu.js /opt/homebrew/var/www
+	cp build/rv32emu.worker.js /opt/homebrew/var/www
 
 config: $(CONFIG_FILE)
 $(CONFIG_FILE):
