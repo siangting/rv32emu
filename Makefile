@@ -195,11 +195,19 @@ deps := $(OBJS:%.o=%.o.d)
 
 EXPORTED_FUNCS := _main
 ifeq ("$(CC_IS_EMCC)", "1")
+ifneq ("$(MAKECMDGOALS)", "doom")
+ifneq ("$(MAKECMDGOALS)", "quake")
+CFLAGS_emcc += --embed-file build  # CLI programs
+CFLAGS_emcc += --pre-js web-resources/js/pre.js
+endif
+endif
 CFLAGS_emcc += -sINITIAL_MEMORY=2GB \
 	       -sALLOW_MEMORY_GROWTH \
 	       -s"EXPORTED_FUNCTIONS=$(EXPORTED_FUNCS)" \
-	       --embed-file build \
-	       -DMEM_SIZE=0x40000000 \
+	       -sSTACK_SIZE=4MB \
+	       -sPTHREAD_POOL_SIZE=navigator.hardwareConcurrency \
+	       -DMEM_SIZE=0x20000000 \
+	       -DCYCLE_PER_STEP=2000000 \
 	       -w
 endif
 
@@ -263,11 +271,42 @@ include mk/external.mk
 
 # Non-trivial demonstration programs
 ifeq ($(call has, SDL), 1)
-doom: $(BIN) $(DOOM_DATA)
-	(cd $(OUT); ../$(BIN) doom.elf)
+WEB_RESOURCES := web-resources
+WEB_JS_RESOURCES := $(WEB_RESOURCES)/js
+doom_action := (cd $(OUT); ../$(BIN) doom.elf)
+ifeq ("$(CC_IS_EMCC)", "1")
+ifeq ("$(MAKECMDGOALS)", "doom")
+doom-prejs := $(WEB_JS_RESOURCES)/doom-pre.js
+doom_deps += $(TIMIDITY_DATA) $(doom-prejs)
+CFLAGS_emcc += --pre-js web-resources/js/doom-pre.js
+CFLAGS_emcc += --embed-file build/doom.elf@doom.elf \
+	       --embed-file build/DOOM1.WAD@DOOM1.WAD \
+	       --embed-file build/doomrc@doomrc \
+	       --embed-file build/timidity@/etc/timidity
+# FIXME: serve and open a web page, show warning if environment not support pthread runtime
+doom_action :=
+endif
+endif
+doom_deps += $(DOOM_DATA) $(BIN)
+doom: $(doom_deps)
+	$(doom_action)
 ifeq ($(call has, EXT_F), 1)
-quake: $(BIN) $(QUAKE_DATA)
-	(cd $(OUT); ../$(BIN) quake.elf)
+quake_action := (cd $(OUT); ../$(BIN) quake.elf)
+ifeq ("$(CC_IS_EMCC)", "1")
+ifeq ("$(MAKECMDGOALS)", "quake")
+quake-prejs := $(WEB_JS_RESOURCES)/quake-pre.js
+quake_deps += $(TIMIDITY_DATA) $(quake-prejs)
+CFLAGS_emcc += --pre-js web-resources/js/quake-pre.js
+CFLAGS_emcc += --embed-file build/quake.elf@quake.elf \
+	       --embed-file build/id1@id1 \
+	       --embed-file build/timidity@/etc/timidity
+# FIXME: serve and open a web page, show warning if environment not support pthread runtime
+quake_action :=
+endif
+endif
+quake_deps += $(QUAKE_DATA) $(BIN)
+quake: $(quake_deps)
+	$(quake_action)
 endif
 endif
 
@@ -275,6 +314,7 @@ clean:
 	$(RM) $(BIN) $(OBJS) $(HIST_BIN) $(HIST_OBJS) $(deps) $(WEB_FILES) $(CACHE_OUT) src/rv32_jit.c
 distclean: clean
 	-$(RM) $(DOOM_DATA) $(QUAKE_DATA)
+	$(RM) -r $(TIMIDITY_DATA)
 	$(RM) -r $(OUT)/id1
 	$(RM) *.zip
 	$(RM) -r $(OUT)/mini-gdbstub

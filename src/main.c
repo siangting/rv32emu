@@ -168,6 +168,10 @@ static void dump_test_signature(const char *prog_name)
     elf_delete(elf);
 }
 
+/* CYCLE_PER_STEP shall be defined on different runtime */
+#ifndef CYCLE_PER_STEP
+#define CYCLE_PER_STEP 100
+#endif
 /* MEM_SIZE shall be defined on different runtime */
 #ifndef MEM_SIZE
 #define MEM_SIZE 0xFFFFFFFFULL /* 2^32 - 1 */
@@ -199,7 +203,7 @@ int main(int argc, char **args)
         .run_flag = run_flag,
         .profile_output_file = prof_out_file,
         .data.user = malloc(sizeof(vm_user_t)),
-        .cycle_per_step = 100,
+        .cycle_per_step = CYCLE_PER_STEP,
         .allow_misalign = opt_misaligned,
     };
     assert(attr.data.user);

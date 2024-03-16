@@ -1074,9 +1074,10 @@ static bool runtime_profiler(riscv_t *rv, block_t *block)
 typedef void (*exec_block_func_t)(riscv_t *rv, uintptr_t);
 #endif
 
-void rv_step(riscv_t *rv)
+void rv_step(void *arg)
 {
-    assert(rv);
+    assert(arg);
+    riscv_t *rv = arg;
     vm_attr_t *attr = PRIV(rv);
     uint32_t cycles = attr->cycle_per_step;
 
