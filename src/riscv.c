@@ -320,7 +320,7 @@ void rv_run(riscv_t *rv)
 #endif
     else {
 #ifdef __EMSCRIPTEN__
-        emscripten_set_main_loop_arg(rv_step, (void *) rv, 0, 1);
+	emscripten_set_main_loop_arg(rv_step, (void *) rv, 0, 1);
 #else
         /* default main loop */
         for (; !rv_has_halted(rv);) /* run until the flag is done */

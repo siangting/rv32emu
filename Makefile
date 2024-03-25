@@ -193,7 +193,7 @@ OBJS := \
 OBJS := $(addprefix $(OUT)/, $(OBJS))
 deps := $(OBJS:%.o=%.o.d)
 
-EXPORTED_FUNCS := _main
+EXPORTED_FUNCS := _main,_rv_swap_video_game
 ifeq ("$(CC_IS_EMCC)", "1")
 ifneq ("$(MAKECMDGOALS)", "doom")
 ifneq ("$(MAKECMDGOALS)", "quake")
@@ -218,6 +218,10 @@ $(OUT)/%.o: src/%.c
 $(BIN): $(OBJS)
 	$(VECHO) "  LD\t$@\n"
 	$(Q)$(CC) -o $@ $(CFLAGS_emcc) $^ $(LDFLAGS)
+	#sudo cp build/rv32emu.html /var/www/html/index.html
+	sudo cp build/rv32emu.js /var/www/html/
+	sudo cp build/rv32emu.wasm /var/www/html/
+	sudo cp build/rv32emu.worker.js /var/www/html/
 
 config: $(CONFIG_FILE)
 $(CONFIG_FILE):
@@ -282,7 +286,9 @@ CFLAGS_emcc += --pre-js web-resources/js/doom-pre.js
 CFLAGS_emcc += --embed-file build/doom.elf@doom.elf \
 	       --embed-file build/DOOM1.WAD@DOOM1.WAD \
 	       --embed-file build/doomrc@doomrc \
-	       --embed-file build/timidity@/etc/timidity
+	       --embed-file build/timidity@/etc/timidity \
+	       --embed-file build/id1@id1 \
+	       --embed-file build
 # FIXME: serve and open a web page, show warning if environment not support pthread runtime
 doom_action :=
 endif
@@ -299,7 +305,8 @@ quake_deps += $(TIMIDITY_DATA) $(quake-prejs)
 CFLAGS_emcc += --pre-js web-resources/js/quake-pre.js
 CFLAGS_emcc += --embed-file build/quake.elf@quake.elf \
 	       --embed-file build/id1@id1 \
-	       --embed-file build/timidity@/etc/timidity
+	       --embed-file build/timidity@/etc/timidity \
+	       --embed-file build
 # FIXME: serve and open a web page, show warning if environment not support pthread runtime
 quake_action :=
 endif

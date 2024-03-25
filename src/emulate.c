@@ -10,6 +10,10 @@
 #include <stdlib.h>
 #include <string.h>
 
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+#endif
+
 #if RV32_HAS(EXT_F)
 #include <math.h>
 #include "softfloat.h"
@@ -1074,10 +1078,27 @@ static bool runtime_profiler(riscv_t *rv, block_t *block)
 typedef void (*exec_block_func_t)(riscv_t *rv, uintptr_t);
 #endif
 
+int swap_video_game = 0;
+
+void rv_swap_video_game(){
+	swap_video_game = 1;
+}
+
 void rv_step(void *arg)
 {
+
     assert(arg);
     riscv_t *rv = arg;
+
+#ifdef __EMSCRIPTEN__
+    if(rv_has_halted(rv) || swap_video_game){
+    	emscripten_cancel_main_loop();
+	rv_delete(rv); // super important
+	swap_video_game = 0;
+	return;
+    }
+#endif
+
     vm_attr_t *attr = PRIV(rv);
     uint32_t cycles = attr->cycle_per_step;
 
