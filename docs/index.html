@@ -116,6 +116,11 @@ canvas.emscripten { border: 0px none; background-color: black; }
       </span>
     </span>
 
+    <select id="elfDropdown">
+      <option value="">Select ELF File</option>
+    </select>
+    <button id="runButton">Run</button>
+
     <div class="emscripten">
       <progress value="0" max="100" id="progress" hidden=1></progress>
     </div>
@@ -129,6 +134,76 @@ canvas.emscripten { border: 0px none; background-color: black; }
       var statusElement = document.getElementById('status');
       var progressElement = document.getElementById('progress');
       var spinnerElement = document.getElementById('spinner');
+
+      var elfFiles = [
+        "doom.elf",
+        "smoles.elf",
+        "quake.elf",
+        "coremark.elf",
+        "dhrystone.elf",
+        "pi.elf",
+        "donut.elf",
+        "aes.elf",
+        "capcha.elf",
+        "cc.elf",
+        "chacha20.elf",
+        "coro.elf",
+        "fcalc.elf",
+        "hamilton.elf",
+        "hello.elf",
+        "ieee754.elf",
+        "jit-bf.elf",
+        "lena.elf",
+        "line.elf",
+        "maj2random.elf",
+        "mandelbrot.elf",
+        "nqueens.elf",
+        "nyancat.elf",
+        "perfcount.elf",
+        "puzzle.elf",
+        "qrcode.elf",
+        "readelf.elf",
+        "richards.elf",
+        "rvsim.elf",
+        "scimark2.elf",
+        "spirograph.elf",
+        "stream.elf",
+      ];
+
+      var runButton = document.getElementById("runButton");
+      runButton.addEventListener("click", runButtonClickHandler);
+
+      var elfDropdown = document.getElementById("elfDropdown");
+      for (var i = 0; i < elfFiles.length; i++) {
+          var option = document.createElement("option");
+          option.value = elfFiles[i];
+          option.textContent = elfFiles[i];
+          elfDropdown.appendChild(option);
+      }
+
+      function runButtonClickHandler() {
+        var selectedElf = document.getElementById("elfDropdown").value;
+        if (selectedElf !== "") {
+            elfHandler(selectedElf);
+            console.log("Running ELF: " + selectedElf);
+        } else {
+            console.warn("Please select an ELF file first.");
+        }
+      }
+
+      function elfHandler(target_elf){
+        var element = document.getElementById('output');
+        if (element) {
+          element.value += `Running ${target_elf}...\n`;
+          element.scrollTop = element.scrollHeight;
+        }
+        Module._indirect_rv_halt();
+        /* important to add some delay for waiting cancellation of main loop before next run */
+        /* Otherwise, get error: only one main loop can be existed */
+        setTimeout(() => {
+          Module['onRuntimeInitialized'](target_elf);
+        }, 1000);
+      }
 
       var Module = {
         print: (function() {
@@ -177,6 +252,7 @@ canvas.emscripten { border: 0px none; background-color: black; }
             progressElement.max = null;
             progressElement.hidden = true;
             if (!text) spinnerElement.style.display = 'none';
+
           }
           statusElement.innerHTML = text;
         },
