@@ -39,7 +39,11 @@ jobs:
         if: ${{ steps.changed-files.outputs.any_changed == 'true' ||
             github.event_name == 'workflow_dispatch'}}
         run: |
-            make CC=emcc ENABLE_GDBSTUB=0
+            make CC=emcc ENABLE_GDBSTUB=0 ENABLE_SDL=1
+      - name: Check out the rv32emu-demo repo
+        uses: actions/checkout@v4
+        with:
+          repository: ChinYikMing/rv32emu-demo
       - name: Test
         run: |
             echo "Successfully here"
