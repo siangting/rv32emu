@@ -39,7 +39,7 @@ jobs:
         if: ${{ steps.changed-files.outputs.any_changed == 'true' ||
             github.event_name == 'workflow_dispatch'}}
         run: |
-            make CC=emcc
+            make CC=emcc ENABLE_GDBSTUB=0
       - name: Test
         run: |
             echo "Successfully here"
