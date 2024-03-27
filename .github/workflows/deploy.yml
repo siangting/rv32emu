@@ -49,6 +49,7 @@ jobs:
       - name: Check out the rv32emu-demo repo
         uses: actions/checkout@v4
         with:
+          persist-credentials: false # otherwise, the token used is the GITHUB_TOKEN, instead of your personal access token.
           repository: ChinYikMing/rv32emu-demo
       - name: Create local changes
         run: |
@@ -60,13 +61,11 @@ jobs:
         run: |
             git config --local user.email "github-actions[bot]@users.noreply.github.com"
             git config --local user.name "github-actions[bot]"
-            git commit -a -m "Add changes"
-            git log
-            #- name: Push changes
-            #  uses: ad-m/github-push-action@master
-            #  with:
-            #    github_token: ${{ secrets.GITHUB_TOKEN }}
-            #    branch: ${{ github.ref }}
-      - name: Test
-        run: |
-            echo "Successfully here"
+            git add --all
+            git commit -m "Add changes"
+      - name: Push changes
+        uses: ad-m/github-push-action@master
+        with:
+          repository: ChinYikMing/rv32emu-demo
+          github_token: ${{ secrets.RV32EMU_DEMO_TOKEN }}
+          branch: main
