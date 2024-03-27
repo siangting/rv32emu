@@ -35,15 +35,32 @@ jobs:
             source ./emsdk_env.sh
             echo "$PATH" >> $GITHUB_PATH
         shell: bash
-      - name: build with emcc
+      - name: build with emcc and move application files to /tmp
         if: ${{ steps.changed-files.outputs.any_changed == 'true' ||
             github.event_name == 'workflow_dispatch'}}
         run: |
             make CC=emcc ENABLE_GDBSTUB=0 ENABLE_SDL=1
+            mkdir /tmp/rv32emu-demo
+            mv assets/html/index.html /tmp/rv32emu-demo
+            mv build/rv32emu.js /tmp/rv32emu-demo
+            mv build/rv32emu.wasm /tmp/rv32emu-demo
+            mv build/rv32emu.worker.js /tmp/rv32emu-demo
+            ls -al /tmp/rv32emu-demo
       - name: Check out the rv32emu-demo repo
         uses: actions/checkout@v4
         with:
           repository: ChinYikMing/rv32emu-demo
+      - name: Create local changes
+        run: |
+            echo "Create local changes"
+      - name: Commit files
+        run: |
+            xxx
+      - name: Push changes
+        uses: ad-m/github-push-action@master
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          branch: ${{ github.ref }}
       - name: Test
         run: |
             echo "Successfully here"
