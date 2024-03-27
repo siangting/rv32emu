@@ -1,12 +1,12 @@
 on:
   pull_request:
     branches:
-      - main
+      - master
     types:
       - closed
   workflow_dispatch:
     branches:
-      - main
+      - master
 
 jobs:
   wasm-deploy:
