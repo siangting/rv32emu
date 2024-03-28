@@ -1,5 +1,6 @@
 # RISC-V RV32I[MAFC] emulator
 ![GitHub Actions](https://github.com/sysprog21/rv32emu/actions/workflows/main.yml/badge.svg)
+![WebAssembly](https://github.com/sysprog21/rv32emu/actions/workflows/deploy-wasm.yml/badge.svg)
 ```
                        /--===============------\
       ______     __    | |⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺⎺|     |
