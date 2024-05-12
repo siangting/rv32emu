@@ -162,8 +162,10 @@ void rv_remap_stdstream(riscv_t *rv, fd_stream_pair_t *fsp, uint32_t fsp_size)
 #define MEMIO(op) on_mem_##op
 #define IO_HANDLER_IMPL(type, op, RW)                                     \
     static IIF(RW)(                                                       \
-        /* W */ void MEMIO(op)(riscv_word_t addr, riscv_##type##_t data), \
-        /* R */ riscv_##type##_t MEMIO(op)(riscv_word_t addr))            \
+        /* W */ void MEMIO(op)(UNUSED riscv_t * rv, riscv_word_t addr,    \
+                               riscv_##type##_t data),                    \
+        /* R */ riscv_##type##_t MEMIO(op)(UNUSED riscv_t * rv,           \
+                                           riscv_word_t addr))            \
     {                                                                     \
         IIF(RW)                                                           \
         (memory_##op(addr, (uint8_t *) &data), return memory_##op(addr)); \
@@ -239,6 +241,10 @@ riscv_t *rv_create(riscv_user_t rv_attr)
         memcpy(&rv->io, &io, sizeof(riscv_io_t));
     } else {
         /* TODO: system emulator */
+
+        /* this variable has external linkage to mmu_io defined in emulate.c */
+        extern riscv_io_t mmu_io;
+        memcpy(&rv->io, &mmu_io, sizeof(riscv_io_t));
     }
 
     /* default standard stream.

@@ -91,10 +91,61 @@ enum {
 #define MISA_A (1 << ('A' - 'A'))
 #define MISA_F (1 << ('F' - 'A'))
 #define MISA_C (1 << ('C' - 'A'))
+
+#define MSTATUS_SIE_SHIFT 1
+#define MSTATUS_MIE_SHIFT 3
+#define MSTATUS_SPIE_SHIFT 5
+#define MSTATUS_UBE_SHIFT 6
 #define MSTATUS_MPIE_SHIFT 7
-#define MSTATUS_MPP_SHIFT 11
+#define MSTATUS_SPP_SHIFT 8
+#define MSTATUS_MPPL_SHIFT 11
+#define MSTATUS_MPPH_SHIFT 12
+#define MSTATUS_MPRV_SHIFT 17
+#define MSTATUS_SUM_SHIFT 18
+#define MSTATUS_MXR_SHIFT 18
+#define MSTATUS_TVM_SHIFT 20
+#define MSTATUS_TW_SHIFT 21
+#define MSTATUS_TSR_SHIFT 22
+#define MSTATUS_SIE (1 << MSTATUS_SIE_SHIFT)
+#define MSTATUS_MIE (1 << MSTATUS_MIE_SHIFT)
+#define MSTATUS_SPIE (1 << MSTATUS_SPIE_SHIFT)
+#define MSTATUS_UBE (1 << MSTATUS_UBE_SHIFT)
 #define MSTATUS_MPIE (1 << MSTATUS_MPIE_SHIFT)
-#define MSTATUS_MPP (3 << MSTATUS_MPP_SHIFT)
+#define MSTATUS_SPP (1 << MSTATUS_SPP_SHIFT)
+#define MSTATUS_MPPL (1 << MSTATUS_MPPL_SHIFT)
+#define MSTATUS_MPPH (1 << MSTATUS_MPPH_SHIFT)
+#define MSTATUS_MPP (3 << MSTATUS_MPPL_SHIFT)
+#define MSTATUS_MPRV (1 << MSTATUS_MPRV_SHIFT)
+#define MSTATUS_SUM (1 << MSTATUS_SUM_SHIFT)
+#define MSTATUS_MXR (1 << MSTATUS_MXR_SHIFT)
+#define MSTATUS_TVM (1 << MSTATUS_TVM_SHIFT)
+#define MSTATUS_TW (1 << MSTATUS_TW_SHIFT)
+#define MSTATUS_TSR (1 << MSTATUS_TSR_SHIFT)
+
+#define PTE_V (1)
+#define PTE_R (1 << 1)
+#define PTE_W (1 << 2)
+#define PTE_X (1 << 3)
+#define PTE_U (1 << 4)
+#define PTE_G (1 << 5)
+#define PTE_A (1 << 6)
+#define PTE_D (1 << 7)
+
+#define SSTATUS_SIE_SHIFT 1
+#define SSTATUS_SPIE_SHIFT 4
+#define SSTATUS_UBE_SHIFT 5
+#define SSTATUS_SPP_SHIFT 7
+#define SSTATUS_SUM_SHIFT 17
+#define SSTATUS_MXR_SHIFT 18
+#define SSTATUS_SIE (1 << SSTATUS_SIE_SHIFT)
+#define SSTATUS_SPIE (1 << SSTATUS_SPIE_SHIFT)
+#define SSTATUS_UBE (1 << SSTATUS_UBE_SHIFT)
+#define SSTATUS_SPP (1 << SSTATUS_SPP_SHIFT)
+#define SSTATUS_SUM (1 << SSTATUS_SUM_SHIFT)
+#define SSTATUS_MXR (1 << SSTATUS_MXR_SHIFT)
+
+#define RV_PG_SHIFT 12
+#define RV_PG_SIZE (1 << RV_PG_SHIFT)
 
 #define BLOCK_MAP_CAPACITY_BITS 10
 
@@ -111,15 +162,21 @@ typedef softfloat_float32_t riscv_float_t;
 #endif
 
 /* memory read handlers */
-typedef riscv_word_t (*riscv_mem_ifetch)(riscv_word_t addr);
-typedef riscv_word_t (*riscv_mem_read_w)(riscv_word_t addr);
-typedef riscv_half_t (*riscv_mem_read_s)(riscv_word_t addr);
-typedef riscv_byte_t (*riscv_mem_read_b)(riscv_word_t addr);
+typedef riscv_word_t (*riscv_mem_ifetch)(riscv_t *rv, riscv_word_t addr);
+typedef riscv_word_t (*riscv_mem_read_w)(riscv_t *rv, riscv_word_t addr);
+typedef riscv_half_t (*riscv_mem_read_s)(riscv_t *rv, riscv_word_t addr);
+typedef riscv_byte_t (*riscv_mem_read_b)(riscv_t *rv, riscv_word_t addr);
 
 /* memory write handlers */
-typedef void (*riscv_mem_write_w)(riscv_word_t addr, riscv_word_t data);
-typedef void (*riscv_mem_write_s)(riscv_word_t addr, riscv_half_t data);
-typedef void (*riscv_mem_write_b)(riscv_word_t addr, riscv_byte_t data);
+typedef void (*riscv_mem_write_w)(riscv_t *rv,
+                                  riscv_word_t addr,
+                                  riscv_word_t data);
+typedef void (*riscv_mem_write_s)(riscv_t *rv,
+                                  riscv_word_t addr,
+                                  riscv_half_t data);
+typedef void (*riscv_mem_write_b)(riscv_t *rv,
+                                  riscv_word_t addr,
+                                  riscv_byte_t data);
 
 /* system instruction handlers */
 typedef void (*riscv_on_ecall)(riscv_t *rv);

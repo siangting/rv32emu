@@ -42,6 +42,9 @@ enum {
     CSR_MTVAL = 0x343,    /* Machine bad address or instruction */
     CSR_MIP = 0x344,      /* Machine interrupt pending */
 
+    CSR_SATP =
+        0x180, /* supervisor address translation and protection register */
+
     /* low words */
     CSR_CYCLE = 0xC00, /* Cycle counter for RDCYCLE instruction */
     CSR_TIME = 0xC01,  /* Timer for RDTIME instruction */
@@ -121,6 +124,17 @@ struct riscv_internal {
     uint32_t csr_mepc;     /* Machine exception program counter */
     uint32_t csr_mip;      /* Machine interrupt pending */
     uint32_t csr_mbadaddr;
+
+    uint32_t csr_sstatus;    /* supervisor status register */
+    uint32_t csr_stvec;      /* supervisor trap vector base address register */
+    uint32_t csr_sip;        /* supervisor interrupt pending register */
+    uint32_t csr_sie;        /* supervisor interrupt enable register */
+    uint32_t csr_scounteren; /* supervisor counter-enable register */
+    uint32_t csr_sscratch;   /* supervisor scratch register */
+    uint32_t csr_sepc;       /* supervisor exception program counter */
+    uint32_t csr_scause;     /* supervisor cause register */
+    uint32_t csr_stval;      /* supervisor trap value register */
+    uint32_t csr_satp;       /* supervisor address translation and protection */
 
     bool compressed; /**< current instruction is compressed or not */
 #if !RV32_HAS(JIT)
