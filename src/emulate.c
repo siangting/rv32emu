@@ -1091,6 +1091,8 @@ static bool runtime_profiler(riscv_t *rv, block_t *block)
 typedef void (*exec_block_func_t)(riscv_t *rv, uintptr_t);
 #endif
 
+void plic_update_interrupts(riscv_t *rv);
+
 #define GET_INTR_IDX(x) (31 - ilog2(x))
 
 static bool rv_has_plic_trap(riscv_t *rv)
@@ -1116,6 +1118,9 @@ void rv_step(void *arg)
             uint8_t intr_idx = GET_INTR_IDX(intr_applicable);
             rv_except_plic_trap(rv, 0, (1U << 31) | intr_idx);
         }
+
+        /* FIXME: too much interrupt updates */
+        plic_update_interrupts(rv);
 
         if (prev && prev->pc_start != last_pc) {
             /* update previous block */
@@ -1213,6 +1218,21 @@ void rv_step(void *arg)
         rv_delete(rv); /* clean up and reuse memory */
     }
 #endif
+}
+
+void plic_update_interrupts(riscv_t *rv)
+{
+    vm_attr_t *attr = PRIV(rv);
+    plic_t *plic = attr->plic;
+
+    /* Update pending interrupts */
+    plic->ip |= plic->active & ~plic->masked;
+    plic->masked |= plic->active;
+    /* Send interrupt to target */
+    if (plic->ip & plic->ie)
+        rv->csr_sip |= SIP_SEIP_SHIFT;
+    else
+        rv->csr_sip &= ~SIP_SEIP_SHIFT;
 }
 
 static uint32_t plic_read(riscv_t *rv, const uint32_t addr)
@@ -1351,42 +1371,42 @@ static uint32_t *mmu_walk(riscv_t *rv, const uint32_t addr)
 /* FIXME: handle access fault */
 #define MMU_FAULT_CHECK(op, rv, pte, addr, access_bits) \
     mmu_##op##_fault_check(rv, pte, addr, access_bits)
-#define MMU_FAULT_CHECK_IMPL(op, pgfault)                                      \
+#define MMU_FAULT_CHECK_IMPL(op, pgfault, cause)                               \
     static bool mmu_##op##_fault_check(riscv_t *rv, uint32_t *pte,             \
                                        uint32_t addr, uint32_t access_bits)    \
     {                                                                          \
         if (!pte && rv->csr_satp) { /* not found */                            \
-            rv_except_##pgfault(rv, addr);                                     \
+            rv_except_##pgfault(rv, addr, cause);                              \
             return false;                                                      \
         } else if (pte &&                                                      \
                    (!(*pte & PTE_V) || (!(*pte & PTE_R) && (*pte & PTE_W)))) { \
-            rv_except_##pgfault(rv, addr);                                     \
+            rv_except_##pgfault(rv, addr, cause);                              \
             return false;                                                      \
         } else if (pte && (!(*pte & PTE_X) && (access_bits & PTE_X))) {        \
-            rv_except_##pgfault(rv, addr);                                     \
+            rv_except_##pgfault(rv, addr, cause);                              \
             return false;                                                      \
         } else if (pte && (!(!(MSTATUS_MXR & rv->csr_mstatus) &&               \
                              !(*pte & PTE_R) && (access_bits & PTE_R)) &&      \
                            !((MSTATUS_MXR & rv->csr_mstatus) &&                \
                              !((*pte & PTE_R) | (*pte & PTE_X)) &&             \
                              (access_bits & PTE_R)))) {                        \
-            rv_except_##pgfault(rv, addr);                                     \
+            rv_except_##pgfault(rv, addr, cause);                              \
             return false;                                                      \
         } else if (pte && ((MSTATUS_MPRV & rv->csr_mstatus) &&                 \
                            !(MSTATUS_MPPH &                                    \
                              rv->csr_mstatus) && /* MPP=01 means S-mode */     \
                            (MSTATUS_MPPL & rv->csr_mstatus))) {                \
             if (!(MSTATUS_SUM & rv->csr_mstatus) && (*pte & PTE_U)) {          \
-                rv_except_##pgfault(rv, addr);                                 \
+                rv_except_##pgfault(rv, addr, cause);                          \
                 return false;                                                  \
             }                                                                  \
         }                                                                      \
         return true;                                                           \
     }
 
-MMU_FAULT_CHECK_IMPL(ifetch, insn_pgfault)
-MMU_FAULT_CHECK_IMPL(read, load_pgfault)
-MMU_FAULT_CHECK_IMPL(write, store_pgfault)
+MMU_FAULT_CHECK_IMPL(ifetch, insn_pgfault, 13)
+MMU_FAULT_CHECK_IMPL(read, load_pgfault, 13)
+MMU_FAULT_CHECK_IMPL(write, store_pgfault, 15)
 
 #define get_ppn_and_offset(ppn, offset)    \
     do {                                   \

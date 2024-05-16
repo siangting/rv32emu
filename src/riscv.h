@@ -144,6 +144,13 @@ enum {
 #define SSTATUS_SUM (1 << SSTATUS_SUM_SHIFT)
 #define SSTATUS_MXR (1 << SSTATUS_MXR_SHIFT)
 
+#define SIP_SSIP_SHIFT 1
+#define SIP_STIP_SHIFT 5
+#define SIP_SEIP_SHIFT 9
+#define SIP_SSIP (1 << SIP_SSIP_SHIFT)
+#define SIP_STIP (1 << SIP_STIP_SHIFT)
+#define SIP_SEIP (1 << SIP_SEIP_SHIFT)
+
 #define RV_PG_SHIFT 12
 #define RV_PG_SIZE (1 << RV_PG_SHIFT)
 
