@@ -199,6 +199,8 @@ riscv_t *rv_create(riscv_user_t rv_attr)
     vm_attr_t *attr = PRIV(rv);
     attr->mem = memory_new(attr->mem_size);
     assert(attr->mem);
+    attr->plic = plic_new();
+    assert(attr->plic);
 
     /* reset */
     rv_reset(rv, 0U);

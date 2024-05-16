@@ -1195,6 +1195,73 @@ void rv_step(void *arg)
 #endif
 }
 
+static uint32_t plic_read(riscv_t *rv, const uint32_t addr)
+{
+    vm_attr_t *attr = PRIV(rv);
+    plic_t *plic = attr->plic;
+
+    /* no priority support: source priority hardwired to 1 */
+    if (addr >= 1 && addr <= 31)
+        return 0;
+
+    uint32_t plic_read_val = 0;
+
+    switch (addr) {
+    case 0x400:
+        plic_read_val = plic->ip;
+        break;
+    case 0x800:
+        plic_read_val = plic->ie;
+        break;
+    case 0x80000:
+        /* no priority support: target priority threshold hardwired to 0 */
+        plic_read_val = 0;
+        break;
+    case 0x80001:
+        /* claim */
+        {
+            uint32_t intr_candidate = plic->ip & plic->ie;
+            if (intr_candidate) {
+                plic_read_val = GET_INTR_IDX(intr_candidate);
+                plic->ip &= ~(1U << (plic_read_val));
+            }
+            break;
+        }
+    default:
+        return 0;
+    }
+
+    return plic_read_val;
+}
+
+static void plic_write(riscv_t *rv, const uint32_t addr, uint32_t value)
+{
+    vm_attr_t *attr = PRIV(rv);
+    plic_t *plic = attr->plic;
+
+    /* no priority support: source priority hardwired to 1 */
+    if (addr >= 1 && addr <= 31)
+        return;
+
+    switch (addr) {
+    case 0x800:
+        plic->ie = (value & ~1);
+        break;
+    case 0x80000:
+        /* no priority support: target priority threshold hardwired to 0 */
+        break;
+    case 0x80001:
+        /* completion */
+        if (plic->ie & (1U << value))
+            plic->masked &= ~(1 << value);
+        break;
+    default:
+        return;
+    }
+
+    return;
+}
+
 static bool ppn_is_valid(riscv_t *rv, uint32_t ppn)
 {
     vm_attr_t *attr = PRIV(rv);
@@ -1323,6 +1390,16 @@ uint32_t mmu_ifetch(riscv_t *rv, const uint32_t addr)
     return memory_ifetch(addr);
 }
 
+static bool addr_is_in_mmio_range(const uint32_t addr)
+{
+    return ((addr >> 20) & 0xF);
+}
+
+static bool addr_is_in_plic_range(const uint32_t addr)
+{
+    return addr_is_in_mmio_range(addr) && ((addr >> 28) & MASK(8));
+}
+
 uint32_t mmu_read_w(riscv_t *rv, const uint32_t addr)
 {
     uint32_t *pte = mmu_walk(rv, addr);
@@ -1334,8 +1411,13 @@ uint32_t mmu_read_w(riscv_t *rv, const uint32_t addr)
         uint32_t ppn;
         uint32_t offset;
         get_ppn_and_offset(ppn, offset);
+
+        if (addr_is_in_plic_range(addr))
+            return plic_read(rv, addr & 0x3FFFFFF);
         return memory_read_w(ppn | offset);
     }
+    if (addr_is_in_plic_range(addr))
+        return plic_read(rv, addr & 0x3FFFFFF);
     return memory_read_w(addr);
 }
 
@@ -1382,8 +1464,13 @@ void mmu_write_w(riscv_t *rv, const uint32_t addr, const uint32_t val)
         uint32_t ppn;
         uint32_t offset;
         get_ppn_and_offset(ppn, offset);
+
+        if (addr_is_in_plic_range(addr))
+            return plic_write(rv, addr & 0x3FFFFFF, val);
         return memory_write_w(ppn | offset, (uint8_t *) &val);
     }
+    if (addr_is_in_plic_range(addr))
+        return plic_write(rv, addr & 0x3FFFFFF, val);
     return memory_write_w(addr, (uint8_t *) &val);
 }
 
