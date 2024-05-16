@@ -1256,7 +1256,7 @@ static void plic_write(riscv_t *rv, const uint32_t addr, uint32_t value)
             plic->masked &= ~(1 << value);
         break;
     default:
-        return;
+        break;
     }
 
     return;
