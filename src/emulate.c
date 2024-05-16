@@ -55,7 +55,7 @@ extern struct target_ops gdbstub_ops;
     _(ecall_M, 11)         /* Environment call from M-mode */      \
     _(insn_pgfault, 12)    /* Instruction page fault */            \
     _(load_pgfault, 13)    /* Load page fault */                   \
-    _(store_pgfault, 15)   /* Store page fault */
+    _(store_pgfault, 15)   /* Store page fault */                  \
     _(plic_trap, 31)       /* Custom PLIC trap handler */
 /* clang-format on */
 
