@@ -123,6 +123,7 @@ struct riscv_internal {
     uint32_t csr_mscratch;  /* Scratch register for machine trap handler */
     uint32_t csr_mepc;      /* Machine exception program counter */
     uint32_t csr_mip;       /* Machine interrupt pending */
+    uint32_t csr_mie;       /* Machine interrupt enable */
     uint32_t csr_mvendorid; /* vendor ID */
     uint32_t csr_marchid;   /* Architecture ID */
     uint32_t csr_mimpid;    /* Implementation ID */

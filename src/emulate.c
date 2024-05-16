@@ -1091,6 +1091,13 @@ static bool runtime_profiler(riscv_t *rv, block_t *block)
 typedef void (*exec_block_func_t)(riscv_t *rv, uintptr_t);
 #endif
 
+#define GET_INTR_IDX(x) (31 - ilog2(x))
+
+static bool rv_has_plic_trap(riscv_t *rv)
+{
+    return (rv->csr_mip && rv->csr_mie);
+}
+
 void rv_step(void *arg)
 {
     assert(arg);
@@ -1104,6 +1111,12 @@ void rv_step(void *arg)
 
     /* loop until hitting the cycle target */
     while (rv->csr_cycle < cycles_target && !rv->halt) {
+        if (rv_has_plic_trap(rv)) {
+            uint32_t intr_applicable = rv->csr_mip && rv->csr_mie;
+            uint8_t intr_idx = GET_INTR_IDX(intr_applicable);
+            rv_except_plic_trap(rv, 0, (1U << 31) | intr_idx);
+        }
+
         if (prev && prev->pc_start != last_pc) {
             /* update previous block */
 #if !RV32_HAS(JIT)
