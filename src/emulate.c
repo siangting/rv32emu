@@ -1093,8 +1093,6 @@ typedef void (*exec_block_func_t)(riscv_t *rv, uintptr_t);
 
 void plic_update_interrupts(riscv_t *rv);
 
-#define GET_INTR_IDX(x) (31 - ilog2(x))
-
 static bool rv_has_plic_trap(riscv_t *rv)
 {
     return (rv->csr_mip && rv->csr_mie);
@@ -1115,7 +1113,7 @@ void rv_step(void *arg)
     while (rv->csr_cycle < cycles_target && !rv->halt) {
         if (rv_has_plic_trap(rv)) {
             uint32_t intr_applicable = rv->csr_mip && rv->csr_mie;
-            uint8_t intr_idx = GET_INTR_IDX(intr_applicable);
+            uint8_t intr_idx = ilog2(intr_applicable);
             rv_except_plic_trap(rv, 0, (1U << 31) | intr_idx);
         }
 
@@ -1262,7 +1260,7 @@ static uint32_t plic_read(riscv_t *rv, const uint32_t addr)
         {
             uint32_t intr_candidate = plic->ip & plic->ie;
             if (intr_candidate) {
-                plic_read_val = GET_INTR_IDX(intr_candidate);
+                plic_read_val = ilog2(intr_candidate);
                 plic->ip &= ~(1U << (plic_read_val));
             }
             break;

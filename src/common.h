@@ -27,17 +27,12 @@
 
 #define MASK(n) (~(1 << n))
 
-/*
- * Integer log base 2
- *
- * The input will be ORed with 1 to prevent x = 0 since
- * the result is undefined if x = 0
- *
- */
+/* Floor log base 2 */
 #if defined(__GNUC__) || defined(__clang__)
-#define ilog2(x) (__builtin_clz(x | 1))
+#define ilog2(x) (31 - __builtin_clz(x | 1))
 #elif defined(_MSC_VER)
 /* FIXME */
+#define ilog2(x)
 #else /* unsupported compilers */
 #define ilog2(x)
 #endif
