@@ -227,6 +227,24 @@ static uint32_t *csr_get_ptr(riscv_t *rv, uint32_t csr)
     case CSR_FCSR:
         return (uint32_t *) (&rv->csr_fcsr);
 #endif
+    case CSR_SSTATUS:
+        return (uint32_t *) (&rv->csr_sstatus);
+    case CSR_SIE:
+        return (uint32_t *) (&rv->csr_sie);
+    case CSR_STVEC:
+        return (uint32_t *) (&rv->csr_stvec);
+    case CSR_SCOUNTEREN:
+        return (uint32_t *) (&rv->csr_scounteren);
+    case CSR_SSCRATCH:
+        return (uint32_t *) (&rv->csr_sscratch);
+    case CSR_SEPC:
+        return (uint32_t *) (&rv->csr_sepc);
+    case CSR_SCAUSE:
+        return (uint32_t *) (&rv->csr_scause);
+    case CSR_STVAL:
+        return (uint32_t *) (&rv->csr_stval);
+    case CSR_SIP:
+        return (uint32_t *) (&rv->csr_sip);
     case CSR_SATP:
         return (uint32_t *) (&rv->csr_satp);
     default:
