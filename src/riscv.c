@@ -472,6 +472,9 @@ void rv_reset(riscv_t *rv, riscv_word_t pc)
     /* reset sp pointing to argc */
     rv->X[rv_reg_sp] = stack_top;
 
+    /* reset privilege mode */
+    rv->priv_mode = RV_PRIV_M_MODE;
+
     /* reset the csrs */
     rv->csr_mtvec = 0;
     rv->csr_cycle = 0;
@@ -496,7 +499,6 @@ void rv_reset(riscv_t *rv, riscv_word_t pc)
 #if RV32_HAS(EXT_M)
     rv->csr_misa |= MISA_M;
 #endif
-
 
     rv->halt = false;
 }

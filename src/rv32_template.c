@@ -990,7 +990,11 @@ RVOP(
     sret,
     {
         /* FIXME: Implement */
-        return false;
+        rv->priv_mode = (rv->csr_sstatus & MSTATUS_SPP) >> MSTATUS_SPP_SHIFT;
+	rv->csr_sstatus &= ~(MSTATUS_SPP);
+	rv->csr_sstatus |= MSTATUS_SPIE;
+        rv->PC = rv->csr_sepc;
+	return true;
     },
     GEN({
         assert; /* FIXME: Implement */
@@ -1011,7 +1015,9 @@ RVOP(
 RVOP(
     mret,
     {
-        rv->csr_mstatus = MSTATUS_MPIE;
+        rv->priv_mode = (rv->csr_mstatus & MSTATUS_MPP) >> MSTATUS_MPP_SHIFT;
+	rv->csr_mstatus &= ~(MSTATUS_MPP);
+	rv->csr_mstatus |= MSTATUS_MPIE;
         rv->PC = rv->csr_mepc;
         return true;
     },

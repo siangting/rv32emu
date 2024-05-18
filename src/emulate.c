@@ -44,28 +44,33 @@ extern struct target_ops gdbstub_ops;
 
 /* RISC-V exception code list */
 /* clang-format off */
-#define RV_EXCEPTION_LIST                                          \
-    IIF(RV32_HAS(EXT_C))(,                                         \
-        _(insn_misaligned, 0) /* Instruction address misaligned */ \
-    )                                                              \
-    _(illegal_insn, 2)     /* Illegal instruction */               \
-    _(breakpoint, 3)       /* Breakpoint */                        \
-    _(load_misaligned, 4)  /* Load address misaligned */           \
-    _(store_misaligned, 6) /* Store/AMO address misaligned */      \
-    _(ecall_M, 11)         /* Environment call from M-mode */      \
-    _(insn_pgfault, 12)    /* Instruction page fault */            \
-    _(load_pgfault, 13)    /* Load page fault */                   \
-    _(store_pgfault, 15)   /* Store page fault */                  \
-    _(plic_trap, 31)       /* Custom PLIC trap handler */
+#define RV_INTER_EXCEPTION_LIST                                                        \
+    IIF(RV32_HAS(EXT_C))(,                                                            \
+        _(insn_misaligned, 0) /* Instruction address misaligned */                    \
+    )                                                                                 \
+    _(supervisor_sw_inter, 0x80000000 | 1)       /* Supervisor software interrupt */  \
+    _(supervisor_timer_inter, 0x80000000 | 5)    /* Supervisor software interrupt */  \
+    _(supervisor_external_inter, 0x80000000 | 9) /* Supervisor software interrupt */  \
+    _(machine_sw_inter, 0x80000000 | 3)          /* Machine software interrupt */     \
+    _(machine_timer_inter, 0x80000000 | 7)       /* Machine software interrupt */     \
+    _(machine_external_inter, 0x80000000 | 11)   /* Machine software interrupt */     \
+    _(illegal_insn, 2)                     /* Illegal instruction */                  \
+    _(breakpoint, 3)                       /* Breakpoint */                           \
+    _(load_misaligned, 4)                  /* Load address misaligned */              \
+    _(store_misaligned, 6)                 /* Store/AMO address misaligned */         \
+    _(ecall_M, 11)                         /* Environment call from M-mode */         \
+    _(insn_pgfault, 12)                    /* Instruction page fault */               \
+    _(load_pgfault, 13)                    /* Load page fault */                      \
+    _(store_pgfault, 15)                   /* Store page fault */
 /* clang-format on */
 
 enum {
-#define _(type, code) rv_exception_code##type = code,
-    RV_EXCEPTION_LIST
+#define _(type, code) rv_interrupt_exception_code##type = code,
+    RV_INTER_EXCEPTION_LIST
 #undef _
 };
 
-static void rv_exception_default_handler(riscv_t *rv)
+static void rv_interrupt_exception_default_handler(riscv_t *rv)
 {
     rv->csr_mepc += rv->compressed ? 2 : 4;
     rv->PC = rv->csr_mepc; /* mret */
@@ -81,11 +86,11 @@ static void rv_exception_default_handler(riscv_t *rv)
  * When a hardware breakpoint is triggered or an exception like address
  * misalignment, access fault, or page fault occurs during an instruction
  * fetch, load, or store operation, mtval is updated with the virtual address
- * that caused the fault. In the case of an illegal instruction trap, mtval
- * might be updated with the first XLEN or ILEN bits of the offending
- * instruction. For all other traps, mtval is simply set to zero. However,
- * it is worth noting that a future standard could redefine how mtval is
- * handled for different types of traps.
+ * that caused the fault. In the case of an illegal instruction trap, mtval *
+ * might be updated with the first XLEN or ILEN bits of the offending *
+ * instruction. For all other traps, mtval is simply set to zero. However, it is
+ * worth noting that a future standard could redefine how mtval is handled for
+ * different types of traps.
  *
  * Note: the third parameter of the rv_except_##type is used for acommodate the
  * emulation of PLIC since the mcause changes based on different interrupt is
@@ -93,43 +98,58 @@ static void rv_exception_default_handler(riscv_t *rv)
  * interrupt handler is installed as exception code 31(exception code 24-31 are
  * designated for custom use).
  */
-#define EXCEPTION_HANDLER_IMPL(type, code)                                     \
-    static void rv_except_##type(riscv_t *rv, uint32_t mtval, uint32_t mcause) \
-    {                                                                          \
-        /* mtvec (Machine Trap-Vector Base Address Register)                   \
-         * mtvec[MXLEN-1:2]: vector base address                               \
-         * mtvec[1:0] : vector mode                                            \
-         */                                                                    \
-        const uint32_t base = rv->csr_mtvec & ~0x3;                            \
-        const uint32_t mode = rv->csr_mtvec & 0x3;                             \
-        /* mepc  (Machine Exception Program Counter)                           \
-         * mtval (Machine Trap Value Register)                                 \
-         * mcause (Machine Cause Register): store exception code               \
-         * mstatus (Machine Status Register): keep track of and controls the   \
-         * hart’s current operating state                                    \
-         */                                                                    \
-        rv->csr_mepc = rv->PC;                                                 \
-        rv->csr_mtval = mtval;                                                 \
-        rv->csr_mcause = code == 31 ? mcause : code;                           \
-        rv->csr_mstatus = MSTATUS_MPP; /* set privilege mode */                \
-        if (!rv->csr_mtvec) {          /* in case CSR is not configured */     \
-            rv_exception_default_handler(rv);                                  \
-            return;                                                            \
-        }                                                                      \
-        switch (mode) {                                                        \
-        case 0: /* DIRECT: All exceptions set PC to base */                    \
-            rv->PC = base;                                                     \
-            break;                                                             \
-        /* VECTORED: Asynchronous interrupts set PC to base + 4 * code */      \
-        case 1:                                                                \
-            rv->PC = base + 4 * (code == 31 ? mcause : code);                  \
-            break;                                                             \
-        }                                                                      \
+#define INTER_EXCEPTION_HANDLER_IMPL(type, code)                              \
+    static void rv_inter_except_##type(riscv_t *rv, uint32_t mtval)           \
+    {                                                                         \
+        /* m/stvec (Machine/Supervisor Trap-Vector Base Address Register)     \
+         * m/stvec[MXLEN-1:2]: vector base address                            \
+         * m/stvec[1:0] : vector mode                                         \
+         */                                                                   \
+        uint32_t base;                                                        \
+        uint32_t mode;                                                        \
+        /* m/sepc  (Machine/Supervisor Exception Program Counter)             \
+         * m/stval (Machine/Supervisor Trap Value Register)                   \
+         * m/scause (Machine/Supervisor Cause Register): store exception code \
+         * m/sstatus (Machine/Supervisor Status Register): keep track of and  \
+         * controls the hart’s current operating state                      \
+         */                                                                   \
+        if (rv->csr_medeleg & code) { /* supervisor */                        \
+            base = rv->csr_stvec & ~0x3;                                      \
+            mode = rv->csr_stvec & 0x3;                                       \
+            rv->csr_sepc = rv->PC;                                            \
+            rv->csr_stval = mtval;                                            \
+            rv->csr_scause = code;                                            \
+            rv->csr_sstatus |= SSTATUS_SPP; /* set privilege mode */          \
+            if (!rv->csr_stvec) { /* in case CSR is not configured */         \
+                rv_interrupt_exception_default_handler(rv);                   \
+                return;                                                       \
+            }                                                                 \
+        } else { /* machine */                                                \
+            base = rv->csr_mtvec & ~0x3;                                      \
+            mode = rv->csr_mtvec & 0x3;                                       \
+            rv->csr_mepc = rv->PC;                                            \
+            rv->csr_mtval = mtval;                                            \
+            rv->csr_mcause = code;                                            \
+            rv->csr_mstatus |= MSTATUS_MPP; /* set privilege mode */          \
+            if (!rv->csr_mtvec) { /* in case CSR is not configured */         \
+                rv_interrupt_exception_default_handler(rv);                   \
+                return;                                                       \
+            }                                                                 \
+        }                                                                     \
+        switch (mode) {                                                       \
+        case 0: /* DIRECT: All exceptions set PC to base */                   \
+            rv->PC = base;                                                    \
+            break;                                                            \
+        /* VECTORED: Asynchronous interrupts set PC to base + 4 * code */     \
+        case 1:                                                               \
+            rv->PC = base + 4 * code;                                         \
+            break;                                                            \
+        }                                                                     \
     }
 
 /* RISC-V exception handlers */
-#define _(type, code) EXCEPTION_HANDLER_IMPL(type, code)
-RV_EXCEPTION_LIST
+#define _(type, code) INTER_EXCEPTION_HANDLER_IMPL(type, code)
+RV_INTER_EXCEPTION_LIST
 #undef _
 
 /* wrap load/store and insn misaligned handler
@@ -138,16 +158,16 @@ RV_EXCEPTION_LIST
  * @compress: compressed instruction or not
  * @IO: whether the misaligned handler is for load/store or insn.
  */
-#define RV_EXC_MISALIGN_HANDLER(mask_or_pc, type, compress, IO)          \
-    IIF(IO)                                                              \
-    (if (!PRIV(rv)->allow_misalign && unlikely(addr & (mask_or_pc))),    \
-     if (unlikely(insn_is_misaligned(PC))))                              \
-    {                                                                    \
-        rv->compressed = compress;                                       \
-        rv->csr_cycle = cycle;                                           \
-        rv->PC = PC;                                                     \
-        rv_except_##type##_misaligned(rv, IIF(IO)(addr, mask_or_pc), 0); \
-        return false;                                                    \
+#define RV_EXC_MISALIGN_HANDLER(mask_or_pc, type, compress, IO)             \
+    IIF(IO)                                                                 \
+    (if (!PRIV(rv)->allow_misalign && unlikely(addr & (mask_or_pc))),       \
+     if (unlikely(insn_is_misaligned(PC))))                                 \
+    {                                                                       \
+        rv->compressed = compress;                                          \
+        rv->csr_cycle = cycle;                                              \
+        rv->PC = PC;                                                        \
+        rv_inter_except_##type##_misaligned(rv, IIF(IO)(addr, mask_or_pc)); \
+        return false;                                                       \
     }
 
 /* get current time in microsecnds and update csr_time register */
@@ -642,7 +662,7 @@ static void block_translate(riscv_t *rv, block_t *block)
         /* decode the instruction */
         if (!rv_decode(ir, insn)) {
             rv->compressed = is_compressed(insn);
-            rv_except_illegal_insn(rv, insn, 0);
+            rv_inter_except_illegal_insn(rv, insn);
             break;
         }
         ir->impl = dispatch_table[ir->opcode];
@@ -1114,7 +1134,26 @@ void rv_step(void *arg)
         if (rv_has_plic_trap(rv)) {
             uint32_t intr_applicable = rv->csr_mip && rv->csr_mie;
             uint8_t intr_idx = ilog2(intr_applicable);
-            rv_except_plic_trap(rv, 0, (1U << 31) | intr_idx);
+            switch (intr_idx) {
+            case 1:
+                rv_inter_except_supervisor_sw_inter(rv, 0);
+                break;
+            case 3:
+                rv_inter_except_machine_sw_inter(rv, 0);
+                break;
+            case 5:
+                rv_inter_except_supervisor_timer_inter(rv, 0);
+                break;
+            case 7:
+                rv_inter_except_machine_timer_inter(rv, 0);
+                break;
+            case 9:
+                rv_inter_except_supervisor_external_inter(rv, 0);
+                break;
+            case 11:
+                rv_inter_except_machine_external_inter(rv, 0);
+                break;
+            }
         }
 
         /* FIXME: too much interrupt updates */
@@ -1369,42 +1408,43 @@ static uint32_t *mmu_walk(riscv_t *rv, const uint32_t addr)
 /* FIXME: handle access fault */
 #define MMU_FAULT_CHECK(op, rv, pte, addr, access_bits) \
     mmu_##op##_fault_check(rv, pte, addr, access_bits)
-#define MMU_FAULT_CHECK_IMPL(op, pgfault, cause)                               \
+#define MMU_FAULT_CHECK_IMPL(op, pgfault)                                      \
     static bool mmu_##op##_fault_check(riscv_t *rv, uint32_t *pte,             \
                                        uint32_t addr, uint32_t access_bits)    \
     {                                                                          \
         if (!pte && rv->csr_satp) { /* not found */                            \
-            rv_except_##pgfault(rv, addr, cause);                              \
+            rv_inter_except_##pgfault(rv, addr);                               \
             return false;                                                      \
-        } else if (pte &&                                                      \
-                   (!(*pte & PTE_V) || (!(*pte & PTE_R) && (*pte & PTE_W)))) { \
-            rv_except_##pgfault(rv, addr, cause);                              \
+        }                                                                      \
+        if (pte && (!(*pte & PTE_V) || (!(*pte & PTE_R) && (*pte & PTE_W)))) { \
+            rv_inter_except_##pgfault(rv, addr);                               \
             return false;                                                      \
-        } else if (pte && (!(*pte & PTE_X) && (access_bits & PTE_X))) {        \
-            rv_except_##pgfault(rv, addr, cause);                              \
+        }                                                                      \
+        if (pte && (!(*pte & PTE_X) && (access_bits & PTE_X))) {               \
+            rv_inter_except_##pgfault(rv, addr);                               \
             return false;                                                      \
-        } else if (pte && (!(!(MSTATUS_MXR & rv->csr_mstatus) &&               \
-                             !(*pte & PTE_R) && (access_bits & PTE_R)) &&      \
-                           !((MSTATUS_MXR & rv->csr_mstatus) &&                \
-                             !((*pte & PTE_R) | (*pte & PTE_X)) &&             \
-                             (access_bits & PTE_R)))) {                        \
-            rv_except_##pgfault(rv, addr, cause);                              \
+        }                                                                      \
+        if (pte && (!(!(SSTATUS_MXR & rv->csr_sstatus) && !(*pte & PTE_R) &&   \
+                      (access_bits & PTE_R)) &&                                \
+                    !((SSTATUS_MXR & rv->csr_sstatus) &&                       \
+                      !((*pte & PTE_R) | (*pte & PTE_X)) &&                    \
+                      (access_bits & PTE_R)))) {                               \
+            rv_inter_except_##pgfault(rv, addr);                               \
             return false;                                                      \
-        } else if (pte && ((MSTATUS_MPRV & rv->csr_mstatus) &&                 \
-                           !(MSTATUS_MPPH &                                    \
-                             rv->csr_mstatus) && /* MPP=01 means S-mode */     \
-                           (MSTATUS_MPPL & rv->csr_mstatus))) {                \
+        }                                                                      \
+        if (pte && (MSTATUS_MPRV & rv->csr_mstatus &&                          \
+                    rv->priv_mode == RV_PRIV_S_MODE)) {                        \
             if (!(MSTATUS_SUM & rv->csr_mstatus) && (*pte & PTE_U)) {          \
-                rv_except_##pgfault(rv, addr, cause);                          \
+                rv_inter_except_##pgfault(rv, addr);                           \
                 return false;                                                  \
             }                                                                  \
         }                                                                      \
         return true;                                                           \
     }
 
-MMU_FAULT_CHECK_IMPL(ifetch, insn_pgfault, 13)
-MMU_FAULT_CHECK_IMPL(read, load_pgfault, 13)
-MMU_FAULT_CHECK_IMPL(write, store_pgfault, 15)
+MMU_FAULT_CHECK_IMPL(ifetch, insn_pgfault)
+MMU_FAULT_CHECK_IMPL(read, load_pgfault)
+MMU_FAULT_CHECK_IMPL(write, store_pgfault)
 
 #define get_ppn_and_offset(ppn, offset)    \
     do {                                   \
@@ -1547,13 +1587,13 @@ void mmu_write_b(riscv_t *rv, const uint32_t addr, const uint8_t val)
 void ebreak_handler(riscv_t *rv)
 {
     assert(rv);
-    rv_except_breakpoint(rv, rv->PC, 0);
+    rv_inter_except_breakpoint(rv, rv->PC);
 }
 
 void ecall_handler(riscv_t *rv)
 {
     assert(rv);
-    rv_except_ecall_M(rv, 0, 0);
+    rv_inter_except_ecall_M(rv, 0);
     syscall_handler(rv);
 }
 
