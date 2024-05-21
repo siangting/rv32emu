@@ -109,6 +109,12 @@ static void rv_interrupt_exception_default_handler(riscv_t *rv)
          */                                                                   \
         /* supervisor */                                                      \
         if (rv->csr_medeleg & code || rv->csr_mideleg & code) {               \
+            const uint32_t sstatus_sie =                                      \
+                (rv->csr_sstatus & SSTATUS_SIE) >> SSTATUS_SIE_SHIFT;         \
+            rv->csr_sstatus |= (sstatus_sie << SSTATUS_SPIE_SHIFT);           \
+            rv->csr_sstatus &= ~(SSTATUS_SIE);                                \
+            rv->csr_sstatus |= (rv->priv_mode << SSTATUS_SPP_SHIFT);          \
+            rv->priv_mode = RV_PRIV_S_MODE;                                   \
             base = rv->csr_stvec & ~0x3;                                      \
             mode = rv->csr_stvec & 0x3;                                       \
             rv->csr_sepc = rv->PC;                                            \
@@ -120,6 +126,12 @@ static void rv_interrupt_exception_default_handler(riscv_t *rv)
                 return;                                                       \
             }                                                                 \
         } else { /* machine */                                                \
+            const uint32_t mstatus_mie =                                      \
+                (rv->csr_mstatus & MSTATUS_MIE) >> MSTATUS_MIE_SHIFT;         \
+            rv->csr_mstatus |= (mstatus_mie << MSTATUS_MPIE_SHIFT);           \
+            rv->csr_mstatus &= ~(MSTATUS_MIE);                                \
+            rv->csr_mstatus |= (rv->priv_mode << MSTATUS_MPP_SHIFT);          \
+            rv->priv_mode = RV_PRIV_M_MODE;                                   \
             base = rv->csr_mtvec & ~0x3;                                      \
             mode = rv->csr_mtvec & 0x3;                                       \
             rv->csr_mepc = rv->PC;                                            \

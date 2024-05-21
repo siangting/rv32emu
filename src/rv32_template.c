@@ -930,17 +930,6 @@ RVOP(
 RVOP(
     ecall,
     {
-        if (rv->priv_mode == RV_PRIV_U_MODE) {
-            rv->csr_sstatus &= ~SSTATUS_SPP;
-            rv->priv_mode = RV_PRIV_S_MODE;
-
-            const uint32_t sstatus_sie =
-                (rv->csr_sstatus & SSTATUS_SIE) >> SSTATUS_SIE_SHIFT;
-            rv->csr_sstatus |= (sstatus_sie << SSTATUS_SPIE_SHIFT);
-            rv->csr_sstatus &= ~(SSTATUS_SIE);
-        } else if (rv->priv_mode == RV_PRIV_S_MODE) {
-            rv->csr_sstatus |= SSTATUS_SPP;
-        }
         rv->compressed = false;
         rv->csr_cycle = cycle;
         rv->PC = PC;
