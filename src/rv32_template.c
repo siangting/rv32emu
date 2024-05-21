@@ -1031,7 +1031,12 @@ RVOP(
     {
         rv->priv_mode = (rv->csr_mstatus & MSTATUS_MPP) >> MSTATUS_MPP_SHIFT;
         rv->csr_mstatus &= ~(MSTATUS_MPP);
+
+        const uint32_t mstatus_mpie =
+            (rv->csr_mstatus & MSTATUS_MPIE) >> MSTATUS_MPIE_SHIFT;
+        rv->csr_mstatus |= (mstatus_mpie << MSTATUS_MIE_SHIFT);
         rv->csr_mstatus |= MSTATUS_MPIE;
+
         rv->PC = rv->csr_mepc;
         return true;
     },
