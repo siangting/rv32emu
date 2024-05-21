@@ -91,12 +91,6 @@ static void rv_interrupt_exception_default_handler(riscv_t *rv)
  * instruction. For all other traps, mtval is simply set to zero. However, it is
  * worth noting that a future standard could redefine how mtval is handled for
  * different types of traps.
- *
- * Note: the third parameter of the rv_except_##type is used for acommodate the
- * emulation of PLIC since the mcause changes based on different interrupt is
- * delivered. Particularly, the interrupt ID is different. The custom PLIC
- * interrupt handler is installed as exception code 31(exception code 24-31 are
- * designated for custom use).
  */
 #define INTER_EXCEPTION_HANDLER_IMPL(type, code)                              \
     static void rv_inter_except_##type(riscv_t *rv, uint32_t mtval)           \
@@ -113,7 +107,8 @@ static void rv_interrupt_exception_default_handler(riscv_t *rv)
          * m/sstatus (Machine/Supervisor Status Register): keep track of and  \
          * controls the hart’s current operating state                      \
          */                                                                   \
-        if (rv->csr_medeleg & code) { /* supervisor */                        \
+        /* supervisor */                                                      \
+        if (rv->csr_medeleg & code || rv->csr_mideleg & code) {               \
             base = rv->csr_stvec & ~0x3;                                      \
             mode = rv->csr_stvec & 0x3;                                       \
             rv->csr_sepc = rv->PC;                                            \
@@ -137,12 +132,15 @@ static void rv_interrupt_exception_default_handler(riscv_t *rv)
             }                                                                 \
         }                                                                     \
         switch (mode) {                                                       \
-        case 0: /* DIRECT: All exceptions set PC to base */                   \
+        /* DIRECT: All exceptions set PC to base */                           \
+        case 0:                                                               \
             rv->PC = base;                                                    \
             break;                                                            \
         /* VECTORED: Asynchronous interrupts set PC to base + 4 * code */     \
         case 1:                                                               \
-            rv->PC = base + 4 * code;                                         \
+            /* MSB of code is used to indicate whether the trap is interrupt  \
+             * or exception, so it is not considered as the 'real' code */    \
+            rv->PC = base + 4 * (code & MASK(31));                            \
             break;                                                            \
         }                                                                     \
     }

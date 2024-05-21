@@ -119,10 +119,7 @@
  */
 
 /* Internal */
-RVOP(
-    nop,
-    { rv->X[rv_reg_zero] = 0; },
-    GEN({/* no operation */}))
+RVOP(nop, { rv->X[rv_reg_zero] = 0; }, GEN({/* no operation */}))
 
 /* LUI is used to build 32-bit constants and uses the U-type format. LUI
  * places the U-immediate value in the top 20 bits of the destination
@@ -297,13 +294,14 @@ RVOP(
         if (!untaken)                                              \
             goto nextop;                                           \
         IIF(RV32_HAS(JIT))                                         \
-        ({                                                         \
-            cache_get(rv->block_cache, PC + 4, true);              \
-            if (!set_add(&pc_set, PC + 4))                         \
-                has_loops = true;                                  \
-            if (cache_hot(rv->block_cache, PC + 4))                \
-                goto nextop;                                       \
-        }, );                                                      \
+        (                                                          \
+            {                                                      \
+                cache_get(rv->block_cache, PC + 4, true);          \
+                if (!set_add(&pc_set, PC + 4))                     \
+                    has_loops = true;                              \
+                if (cache_hot(rv->block_cache, PC + 4))            \
+                    goto nextop;                                   \
+            }, );                                                  \
         PC += 4;                                                   \
         last_pc = PC;                                              \
         MUST_TAIL return untaken->impl(rv, untaken, cycle, PC);    \
@@ -316,13 +314,14 @@ RVOP(
     struct rv_insn *taken = ir->branch_taken;                      \
     if (taken) {                                                   \
         IIF(RV32_HAS(JIT))                                         \
-        ({                                                         \
-            cache_get(rv->block_cache, PC, true);                  \
-            if (!set_add(&pc_set, PC))                             \
-                has_loops = true;                                  \
-            if (cache_hot(rv->block_cache, PC))                    \
-                goto end_op;                                       \
-        }, );                                                      \
+        (                                                          \
+            {                                                      \
+                cache_get(rv->block_cache, PC, true);              \
+                if (!set_add(&pc_set, PC))                         \
+                    has_loops = true;                              \
+                if (cache_hot(rv->block_cache, PC))                \
+                    goto end_op;                                   \
+            }, );                                                  \
         last_pc = PC;                                              \
         MUST_TAIL return taken->impl(rv, taken, cycle, PC);        \
     }                                                              \
@@ -931,6 +930,17 @@ RVOP(
 RVOP(
     ecall,
     {
+        if (rv->priv_mode == RV_PRIV_U_MODE) {
+            rv->csr_sstatus &= ~SSTATUS_SPP;
+            rv->priv_mode = RV_PRIV_S_MODE;
+
+            const uint32_t sstatus_sie =
+                (rv->csr_sstatus & SSTATUS_SIE) >> SSTATUS_SIE_SHIFT;
+            rv->csr_sstatus |= (sstatus_sie << SSTATUS_SPIE_SHIFT);
+            rv->csr_sstatus &= ~(SSTATUS_SIE);
+        } else if (rv->priv_mode == RV_PRIV_S_MODE) {
+            rv->csr_sstatus |= SSTATUS_SPP;
+        }
         rv->compressed = false;
         rv->csr_cycle = cycle;
         rv->PC = PC;
@@ -989,12 +999,16 @@ RVOP(
 RVOP(
     sret,
     {
-        /* FIXME: Implement */
         rv->priv_mode = (rv->csr_sstatus & MSTATUS_SPP) >> MSTATUS_SPP_SHIFT;
-	rv->csr_sstatus &= ~(MSTATUS_SPP);
-	rv->csr_sstatus |= MSTATUS_SPIE;
+        rv->csr_sstatus &= ~(MSTATUS_SPP);
+
+        const uint32_t sstatus_spie =
+            (rv->csr_sstatus & SSTATUS_SPIE) >> SSTATUS_SPIE_SHIFT;
+        rv->csr_sstatus |= (sstatus_spie << SSTATUS_SIE_SHIFT);
+        rv->csr_sstatus |= SSTATUS_SPIE;
+
         rv->PC = rv->csr_sepc;
-	return true;
+        return true;
     },
     GEN({
         assert; /* FIXME: Implement */
@@ -1011,13 +1025,13 @@ RVOP(
         assert; /* FIXME: Implement */
     }))
 
-/* MRET: return from traps in U-mode */
+/* MRET: return from traps in M-mode */
 RVOP(
     mret,
     {
         rv->priv_mode = (rv->csr_mstatus & MSTATUS_MPP) >> MSTATUS_MPP_SHIFT;
-	rv->csr_mstatus &= ~(MSTATUS_MPP);
-	rv->csr_mstatus |= MSTATUS_MPIE;
+        rv->csr_mstatus &= ~(MSTATUS_MPP);
+        rv->csr_mstatus |= MSTATUS_MPIE;
         rv->PC = rv->csr_mepc;
         return true;
     },
