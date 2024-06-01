@@ -256,14 +256,22 @@ RVOP(
         const uint32_t pc = PC;
         /* jump */
         PC = (rv->X[ir->rs1] + ir->imm) & ~1U;
+	printf("new PC: %x\n", PC);
+	printf("rs1: %x\n", rv->X[ir->rs1]);
+	printf("imm: %x\n", ir->imm);
+
         /* link */
         if (ir->rd)
             rv->X[ir->rd] = pc + 4;
+
+	printf("after new PC\n");
         /* check instruction misaligned */
 #if !RV32_HAS(EXT_C)
         RV_EXC_MISALIGN_HANDLER(pc, insn, false, 0);
+	printf("after new PC\n");
 #endif
-        LOOKUP_OR_UPDATE_BRANCH_HISTORY_TABLE();
+        //LOOKUP_OR_UPDATE_BRANCH_HISTORY_TABLE();
+	printf("before goto\n");
         goto end_op;
     },
     GEN({
@@ -537,7 +545,9 @@ RVOP(
 RVOP(
     lw,
     {
+	printf("called lw\n");
         const uint32_t addr = rv->X[ir->rs1] + ir->imm;
+	printf("addr: %x\n", addr);
         RV_EXC_MISALIGN_HANDLER(3, load, false, 1);
         rv->X[ir->rd] = rv->io.mem_read_w(rv, addr);
     },
@@ -988,6 +998,7 @@ RVOP(
 RVOP(
     sret,
     {
+        printf("sret: called here\n");
         rv->priv_mode = (rv->csr_sstatus & MSTATUS_SPP) >> MSTATUS_SPP_SHIFT;
         rv->csr_sstatus &= ~(MSTATUS_SPP);
 
@@ -997,6 +1008,7 @@ RVOP(
         rv->csr_sstatus |= SSTATUS_SPIE;
 
         rv->PC = rv->csr_sepc;
+	printf("PC after sret: 0x%x\n", rv->PC);
         return true;
     },
     GEN({
@@ -1053,8 +1065,10 @@ RVOP(
 RVOP(
     csrrw,
     {
+    	printf("csrrw here\n");
         uint32_t tmp = csr_csrrw(rv, ir->imm, rv->X[ir->rs1]);
         rv->X[ir->rd] = ir->rd ? tmp : rv->X[ir->rd];
+    	printf("rv->satp after csrrw: 0x%x\n", rv->csr_satp);
     },
     GEN({
         assert; /* FIXME: Implement */

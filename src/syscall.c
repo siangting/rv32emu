@@ -137,6 +137,9 @@ static void syscall_exit(riscv_t *rv)
      * the application decides the usage of exit code
      */
     rv_halt(rv);
+    printf("a0: %d\n", rv_get_reg(rv, rv_reg_a0));
+
+    printf("exit syscall called\n");
 
     vm_attr_t *attr = PRIV(rv);
     attr->exit_code = rv_get_reg(rv, rv_reg_a0);

@@ -25,7 +25,7 @@
 
 #define ARRAYS_SIZE(arr) (sizeof(arr) / sizeof(arr[0]))
 
-#define MASK(n) (~(1 << n))
+#define MASK(n) (~((~0U << (n))))
 
 /* Floor log base 2 */
 #if defined(__GNUC__) || defined(__clang__)

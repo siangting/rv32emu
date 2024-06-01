@@ -207,6 +207,7 @@ int main(int argc, char **args)
 #endif
     run_flag |= opt_prof_data << 2;
 
+#ifndef SYSTEM
     vm_attr_t attr = {
         .mem_size = MEM_SIZE,
         .stack_size = STACK_SIZE,
@@ -222,6 +223,23 @@ int main(int argc, char **args)
     };
     assert(attr.data.user);
     attr.data.user->elf_program = opt_prog_name;
+#else
+    vm_attr_t attr = {
+        .mem_size = MEM_SIZE,
+        .stack_size = STACK_SIZE,
+        .args_offset_size = ARGS_OFFSET_SIZE,
+        .argc = prog_argc,
+        .argv = prog_args,
+        .log_level = 0,
+        .run_flag = run_flag,
+        .profile_output_file = prof_out_file,
+	.data.system = malloc(sizeof(vm_system_t)),
+        .cycle_per_step = CYCLE_PER_STEP,
+        .allow_misalign = opt_misaligned,
+    };
+    assert(attr.data.system);
+    attr.data.system->elf_program = opt_prog_name;
+#endif
 
     /* create the RISC-V runtime */
     rv = rv_create(&attr);

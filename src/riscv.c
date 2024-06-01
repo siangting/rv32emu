@@ -243,6 +243,20 @@ riscv_t *rv_create(riscv_user_t rv_attr)
         memcpy(&rv->io, &io, sizeof(riscv_io_t));
     } else {
         /* TODO: system emulator */
+        elf_t *elf = elf_new();
+        assert(elf && elf_open(elf, (attr->data.system)->elf_program));
+
+        const struct Elf32_Sym *end;
+        if ((end = elf_get_symbol(elf, "_end")))
+            attr->break_addr = end->st_value;
+
+        assert(elf_load(elf, attr->mem));
+
+        /* set the entry pc */
+        const struct Elf32_Ehdr *hdr = get_elf_header(elf);
+        assert(rv_set_pc(rv, hdr->e_entry));
+
+        elf_delete(elf);
 
         /* this variable has external linkage to mmu_io defined in emulate.c */
         extern riscv_io_t mmu_io;
@@ -318,7 +332,7 @@ void rv_run(riscv_t *rv)
     assert(rv);
 
     vm_attr_t *attr = PRIV(rv);
-    assert(attr && attr->data.user && attr->data.user->elf_program);
+    //assert(attr && attr->data.user && attr->data.user->elf_program);
 
     if (attr->run_flag & RV_RUN_TRACE)
         rv_run_and_trace(rv);

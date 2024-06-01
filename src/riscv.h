@@ -384,7 +384,12 @@ typedef struct {
 } vm_user_t;
 
 typedef struct {
+    char *elf_program;
+} vm_system_t;
+
+typedef struct {
     vm_user_t *user;
+    vm_system_t *system;
     /* TODO: system emulator stuff */
 } vm_data_t;
 

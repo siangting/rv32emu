@@ -813,6 +813,8 @@ static inline bool op_system(rv_insn_t *ir, const uint32_t insn)
     /* decode I-type */
     decode_itype(ir, insn);
 
+    //printf("system decode\n");
+
     /* dispatch from funct3 field */
     switch (decode_funct3(insn)) {
     case 0:
@@ -827,6 +829,8 @@ static inline bool op_system(rv_insn_t *ir, const uint32_t insn)
         case 0x105: /* WFI: Wait for Interrupt */
         case 0x002: /* URET: return from traps in U-mode */
         case 0x102: /* SRET: return from traps in S-mode */
+            ir->opcode = rv_insn_sret;
+	    break;
         case 0x202: /* HRET: return from traps in H-mode */
             /* illegal instruciton */
             return false;
@@ -868,13 +872,18 @@ static inline bool op_system(rv_insn_t *ir, const uint32_t insn)
      * CSRRSI csr       uimm 110    rd 1110011
      * CSRRCI csr       uimm 111    rd 1110011
      */
+     //0b11000000001111        001    00000 1110011
+     //0b11000000000000        010    01111 1110011
     case 1: /* CSRRW: Atomic Read/Write CSR */
+	//printf("csrrw decode\n");
         ir->opcode = rv_insn_csrrw;
         break;
     case 2: /* CSRRS: Atomic Read and Set Bits in CSR */
+	//printf("csrrs decode\n");
         ir->opcode = rv_insn_csrrs;
         break;
     case 3: /* CSRRC: Atomic Read and Clear Bits in CSR */
+	//printf("csrrc decode\n");
         ir->opcode = rv_insn_csrrc;
         break;
     case 5: /* CSRRWI */
@@ -891,8 +900,11 @@ static inline bool op_system(rv_insn_t *ir, const uint32_t insn)
     default: /* illegal instruction */
         return false;
     }
-    if (!csr_is_writable(ir->imm) && ir->rs1 != rv_reg_zero)
+    if (!csr_is_writable(ir->imm) && ir->rs1 != rv_reg_zero){
+	//printf("writable check failed\n");
         return false;
+    }
+    //printf("return true\n");
     return true;
 }
 
