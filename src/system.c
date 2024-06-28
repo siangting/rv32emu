@@ -7,7 +7,79 @@
 #error "Do not manage to build this file unless you enable system support."
 #endif
 
+#include "plic.h"
 #include "riscv_private.h"
+
+void emu_update_uart_interrupts(riscv_t *rv)
+{
+    vm_attr_t *attr = PRIV(rv);
+    u8250_update_interrupts(attr->uart);
+    if (attr->uart->pending_ints) {
+        attr->plic->active |= IRQ_UART_BIT;
+    } else
+        attr->plic->active &= ~IRQ_UART_BIT;
+    plic_update_interrupts(rv);
+}
+
+#define MMIO_PLIC 1
+#define MMIO_UART 0
+#define MMIO_R 1
+#define MMIO_W 0
+
+uint8_t ret_char;
+/* clang-format off */
+#define MMIO_OP(io, rw)                                           \
+    IIF(io)( /* PLIC */                                           \
+        IIF(rw)( /* read */                                       \
+            read_val = plic_read(rv, (addr & 0x3FFFFFF) >> 2);           \
+	    plic_update_interrupts(rv); return read_val;          \
+	    ,     /* write */                                     \
+            plic_write(rv, (addr & 0x3FFFFFF) >> 2, val);   \
+            plic_update_interrupts(rv); return;                   \
+        )                                                         \
+        ,    /* UART */                                           \
+        IIF(rw)( /* read */                                       \
+            /*return 0x60 | 0x1; */                                   \
+	    ret_char = u8250_read(PRIV(rv)->uart, addr & 0xFFFFF);\
+	    emu_update_uart_interrupts(rv);\
+	    return ret_char;\
+	    ,   /* write */                                       \
+	    u8250_write(PRIV(rv)->uart, addr & 0xFFFFF, val);\
+	    emu_update_uart_interrupts(rv);\
+	    return;\
+	)                                                         \
+    )
+/* clang-format on */
+
+#define MMIO_READ()                                         \
+    do {                                                    \
+        uint32_t read_val;                                  \
+        if ((addr >> 28) == 0xF) { /* MMIO at 0xF_______ */ \
+            /* 256 regions of 1MiB */                       \
+            switch ((addr >> 20) & MASK(8)) {               \
+            case 0x0:                                       \
+            case 0x2: /* PLIC (0 - 0x3F) */                 \
+                MMIO_OP(MMIO_PLIC, MMIO_R);                 \
+            case 0x40: /* UART */                           \
+                MMIO_OP(MMIO_UART, MMIO_R);                 \
+            }                                               \
+        }                                                   \
+    } while (0)
+
+#define MMIO_WRITE()                                        \
+    do {                                                    \
+        if ((addr >> 28) == 0xF) { /* MMIO at 0xF_______ */ \
+            /* 256 regions of 1MiB */                       \
+            switch ((addr >> 20) & MASK(8)) {               \
+            case 0x0:                                       \
+            case 0x2: /* PLIC (0 - 0x3F) */                 \
+                MMIO_OP(MMIO_PLIC, MMIO_W);                 \
+            case 0x40: /* UART */                           \
+                MMIO_OP(MMIO_UART, MMIO_W);                 \
+            }                                               \
+        }                                                   \
+    } while (0)
+
 
 static bool ppn_is_valid(riscv_t *rv, uint32_t ppn)
 {
@@ -173,6 +245,7 @@ MMU_FAULT_CHECK_IMPL(write, pagefault_store)
  * - mmu_write_s
  * - mmu_write_b
  */
+extern bool need_retranslate;
 static uint32_t mmu_ifetch(riscv_t *rv, const uint32_t addr)
 {
     if (!rv->csr_satp)
@@ -183,6 +256,10 @@ static uint32_t mmu_ifetch(riscv_t *rv, const uint32_t addr)
     bool ok = MMU_FAULT_CHECK(ifetch, rv, pte, addr, PTE_X);
     if (unlikely(!ok))
         pte = mmu_walk(rv, addr, &level);
+
+    if (need_retranslate) {
+        return 0;
+    }
 
     get_ppn_and_offset();
     return memory_ifetch(ppn | offset);
@@ -199,8 +276,15 @@ static uint32_t mmu_read_w(riscv_t *rv, const uint32_t addr)
     if (unlikely(!ok))
         pte = mmu_walk(rv, addr, &level);
 
-    get_ppn_and_offset();
-    return memory_read_w(ppn | offset);
+    {
+        get_ppn_and_offset();
+        const uint32_t addr = ppn | offset;
+        const vm_attr_t *attr = PRIV(rv);
+        if (addr < attr->mem->mem_size)
+            return memory_read_w(addr);
+
+        MMIO_READ();
+    }
 }
 
 static uint16_t mmu_read_s(riscv_t *rv, const uint32_t addr)
@@ -229,8 +313,15 @@ static uint8_t mmu_read_b(riscv_t *rv, const uint32_t addr)
     if (unlikely(!ok))
         pte = mmu_walk(rv, addr, &level);
 
-    get_ppn_and_offset();
-    return memory_read_b(ppn | offset);
+    {
+        get_ppn_and_offset();
+        const uint32_t addr = ppn | offset;
+        const vm_attr_t *attr = PRIV(rv);
+        if (addr < attr->mem->mem_size)
+            return memory_read_b(addr);
+
+        MMIO_READ();
+    }
 }
 
 static void mmu_write_w(riscv_t *rv, const uint32_t addr, const uint32_t val)
@@ -244,8 +335,17 @@ static void mmu_write_w(riscv_t *rv, const uint32_t addr, const uint32_t val)
     if (unlikely(!ok))
         pte = mmu_walk(rv, addr, &level);
 
-    get_ppn_and_offset();
-    memory_write_w(ppn | offset, (uint8_t *) &val);
+    {
+        get_ppn_and_offset();
+        const uint32_t addr = ppn | offset;
+        const vm_attr_t *attr = PRIV(rv);
+        if (addr < attr->mem->mem_size) {
+            memory_write_w(addr, (uint8_t *) &val);
+            return;
+        }
+
+        MMIO_WRITE();
+    }
 }
 
 static void mmu_write_s(riscv_t *rv, const uint32_t addr, const uint16_t val)
@@ -274,8 +374,17 @@ static void mmu_write_b(riscv_t *rv, const uint32_t addr, const uint8_t val)
     if (unlikely(!ok))
         pte = mmu_walk(rv, addr, &level);
 
-    get_ppn_and_offset();
-    memory_write_b(ppn | offset, (uint8_t *) &val);
+    {
+        get_ppn_and_offset();
+        const uint32_t addr = ppn | offset;
+        const vm_attr_t *attr = PRIV(rv);
+        if (addr < attr->mem->mem_size) {
+            memory_write_b(addr, (uint8_t *) &val);
+            return;
+        }
+
+        MMIO_WRITE();
+    }
 }
 
 riscv_io_t mmu_io = {

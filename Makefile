@@ -47,6 +47,8 @@ OBJS_EXT :=
 
 ifeq ($(call has, SYSTEM), 1)
 OBJS_EXT += system.o
+OBJS_EXT += plic.o
+OBJS_EXT += uart.o
 endif
 
 # Integer Multiplication and Division instructions

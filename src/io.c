@@ -15,6 +15,22 @@
 
 #include "io.h"
 
+u8250_state_t *u8250_new()
+{
+    u8250_state_t *uart = calloc(1, sizeof(u8250_state_t));
+    assert(uart);
+
+    return uart;
+}
+
+plic_t *plic_new()
+{
+    plic_t *plic = calloc(1, sizeof(plic_t));
+    assert(plic);
+
+    return plic;
+}
+
 static uint8_t *data_memory_base;
 
 memory_t *memory_new(uint32_t size)
