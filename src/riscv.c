@@ -211,6 +211,66 @@ static void *t2c_runloop(void *arg)
 }
 #endif
 
+#include <fcntl.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
+static void map_file(char **ram_loc, const char *name)
+{
+    int fd = open(name, O_RDONLY);
+    if (fd < 0) {
+        fprintf(stderr, "could not open %s\n", name);
+        exit(2);
+    }
+
+    /* get file size */
+    struct stat st;
+    fstat(fd, &st);
+
+    /* remap to a memory region */
+    *ram_loc = mmap(*ram_loc, st.st_size, PROT_READ | PROT_WRITE,
+                    MAP_FIXED | MAP_PRIVATE, fd, 0);
+    if (*ram_loc == MAP_FAILED) {
+        perror("mmap");
+        printf("name: %s\n", name);
+        close(fd);
+        exit(2);
+    }
+
+    // FIXME: used for unmap
+    // mapper[map_index].addr = *ram_loc;
+    // mapper[map_index].size = st.st_size;
+    // map_index++;
+
+    /* The kernel selects a nearby page boundary and attempts to create
+     * the mapping.
+     */
+    *ram_loc += st.st_size;
+
+    close(fd);
+}
+
+#include <termios.h>
+
+static void reset_keyboard_input()
+{
+    /* Re-enable echo, etc. on keyboard. */
+    struct termios term;
+    tcgetattr(0, &term);
+    term.c_lflag |= ICANON | ECHO;
+    tcsetattr(0, TCSANOW, &term);
+}
+/* Asynchronous communication to capture all keyboard input for the VM. */
+static void capture_keyboard_input()
+{
+    /* Hook exit, because we want to re-enable keyboard. */
+    atexit(reset_keyboard_input);
+
+    struct termios term;
+    tcgetattr(0, &term);
+    term.c_lflag &= ~(ICANON | ECHO | ISIG); /* Disable echo as well */
+    tcsetattr(0, TCSANOW, &term);
+}
+
 riscv_t *rv_create(riscv_user_t rv_attr)
 {
     assert(rv_attr);
@@ -224,9 +284,13 @@ riscv_t *rv_create(riscv_user_t rv_attr)
     vm_attr_t *attr = PRIV(rv);
     attr->mem = memory_new(attr->mem_size);
     assert(attr->mem);
+    assert(!(((uintptr_t) attr->mem) & 0b11));
 
     /* reset */
     rv_reset(rv, 0U);
+
+    /* FIXME */
+    // capture_keyboard_input();
 
     if (attr->data.user) {
         elf_t *elf = elf_new();
@@ -268,30 +332,52 @@ riscv_t *rv_create(riscv_user_t rv_attr)
     }
 #if RV32_HAS(SYSTEM)
     else {
-        /* TODO: Implement the essential functions for system emulation.
-         * e.g., kernel image, dtb, rootfs
-         *
-         * The test suite is compiled into a single ELF file, so load it as
-         * an ELF executable, just like a userspace ELF.
+        /* *-----------------------------------------*
+         * |              Memory layout              |
+         * *----------------*----------------*-------*
+         * |  kernel image  |  initrd image  |  dtb  |
+         * *----------------*----------------*-------*
          */
-        elf_t *elf = elf_new();
-        assert(elf && elf_open(elf, (attr->data.system)->elf_program));
 
-        const struct Elf32_Sym *end;
-        if ((end = elf_get_symbol(elf, "_end")))
-            attr->break_addr = end->st_value;
+        // elf_t *elf = elf_new();
+        char *ram_loc = (char *) attr->mem->mem_base;
+        map_file(&ram_loc, (attr->data.system)->kernel);
 
-        assert(elf_load(elf, attr->mem));
-
-        /* set the entry pc */
-        const struct Elf32_Ehdr *hdr = get_elf_header(elf);
-        assert(rv_set_pc(rv, hdr->e_entry));
-
-        elf_delete(elf);
+        uint32_t dtb_addr = attr->mem->mem_size - (1 * 1024 * 1024);
+        ram_loc = ((char *) attr->mem->mem_base) + dtb_addr;
+        map_file(&ram_loc, (attr->data.system)->dtb);
+        /* Load optional initrd image at last 8 MiB before the dtb region to
+         * prevent kernel from overwritting it
+         */
+        if ((attr->data.system)->initrd) {
+            uint32_t initrd_addr = dtb_addr - (8 * 1024 * 1024);
+            ram_loc = ((char *) attr->mem->mem_base) + initrd_addr;
+            map_file(&ram_loc, (attr->data.system)->initrd);
+        }
 
         /* this variable has external linkage to mmu_io defined in system.c */
         extern riscv_io_t mmu_io;
         memcpy(&rv->io, &mmu_io, sizeof(riscv_io_t));
+
+        /* setup RISC-V hart */
+        rv_set_reg(rv, rv_reg_a0, 0);
+        rv_set_reg(rv, rv_reg_a1, dtb_addr);
+
+        /* setup timer */
+        attr->timer = 0xFFFFFFFFFFFFFFF;
+
+        /* setup PLIC */
+        attr->plic = plic_new();
+        assert(attr->plic);
+
+        /* setup PLIC */
+        attr->uart = u8250_new();
+        assert(attr->uart);
+        attr->uart->in_fd = 0;
+        attr->uart->out_fd = 1;
+
+        /* reset privilege mode */
+        rv->priv_mode = RV_PRIV_S_MODE;
     }
 #endif /* SYSTEM */
 
@@ -342,7 +428,7 @@ static void rv_run_and_trace(riscv_t *rv)
 
     vm_attr_t *attr = PRIV(rv);
     assert(attr && attr->data.user && attr->data.user->elf_program);
-    attr->cycle_per_step = 1;
+    attr->cycle_per_step = 100000000;
 
     const char *prog_name = attr->data.user->elf_program;
     elf_t *elf = elf_new();
@@ -374,7 +460,8 @@ void rv_run(riscv_t *rv)
     vm_attr_t *attr = PRIV(rv);
     assert(attr &&
 #if RV32_HAS(SYSTEM)
-           attr->data.system && attr->data.system->elf_program
+           attr->data.system && attr->data.system->kernel &&
+           attr->data.system->initrd && attr->data.system->dtb
 #else
            attr->data.user && attr->data.user->elf_program
 #endif

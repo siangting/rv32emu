@@ -174,7 +174,11 @@ RVOP(
                 goto end_op;
 #endif
             last_pc = PC;
-            MUST_TAIL return taken->impl(rv, taken, cycle, PC);
+#if RV32_HAS(SYSTEM)
+            if (!rv->is_trapped)
+#endif
+                MUST_TAIL
+                return taken->impl(rv, taken, cycle, PC);
         }
         goto end_op;
     },
@@ -197,26 +201,34 @@ RVOP(
  * table to link he indirect jump targets.
  */
 #if !RV32_HAS(JIT)
-#define LOOKUP_OR_UPDATE_BRANCH_HISTORY_TABLE()                               \
-    /* lookup branch history table */                                         \
-    IIF(RV32_HAS(SYSTEM)(if (!rv->is_trapped), ))                             \
-    {                                                                         \
-        for (int i = 0; i < HISTORY_SIZE; i++) {                              \
-            if (ir->branch_table->PC[i] == PC) {                              \
-                MUST_TAIL return ir->branch_table->target[i]->impl(           \
-                    rv, ir->branch_table->target[i], cycle, PC);              \
-            }                                                                 \
-        }                                                                     \
-        block_t *block = block_find(&rv->block_map, PC);                      \
-        if (block) {                                                          \
-            /* update branch history table */                                 \
-            ir->branch_table->PC[ir->branch_table->idx] = PC;                 \
-            ir->branch_table->target[ir->branch_table->idx] = block->ir_head; \
-            ir->branch_table->idx =                                           \
-                (ir->branch_table->idx + 1) % HISTORY_SIZE;                   \
-            MUST_TAIL return block->ir_head->impl(rv, block->ir_head, cycle,  \
-                                                  PC);                        \
-        }                                                                     \
+#define LOOKUP_OR_UPDATE_BRANCH_HISTORY_TABLE()                                \
+    /*                                                                         \
+     * lookup branch history table                                             \
+     *                                                                         \
+     * When handling trap, the branch history table should not be lookup since \
+     * it causes return from the trap_handler.                                 \
+     *                                                                         \
+     * In addition, before relocate_enable_mmu, the block maybe retranslated,  \
+     * thus the branch history lookup table should not be updated too.         \
+     */                                                                        \
+    IIF(RV32_HAS(SYSTEM)(if (!rv->is_trapped && !reloc_enable_mmu), ))         \
+    {                                                                          \
+        for (int i = 0; i < HISTORY_SIZE; i++) {                               \
+            if (ir->branch_table->PC[i] == PC) {                               \
+                MUST_TAIL return ir->branch_table->target[i]->impl(            \
+                    rv, ir->branch_table->target[i], cycle, PC);               \
+            }                                                                  \
+        }                                                                      \
+        block_t *block = block_find(&rv->block_map, PC);                       \
+        if (block) {                                                           \
+            /* update branch history table */                                  \
+            ir->branch_table->PC[ir->branch_table->idx] = PC;                  \
+            ir->branch_table->target[ir->branch_table->idx] = block->ir_head;  \
+            ir->branch_table->idx =                                            \
+                (ir->branch_table->idx + 1) % HISTORY_SIZE;                    \
+            MUST_TAIL return block->ir_head->impl(rv, block->ir_head, cycle,   \
+                                                  PC);                         \
+        }                                                                      \
     }
 #else
 #define LOOKUP_OR_UPDATE_BRANCH_HISTORY_TABLE()                               \
@@ -269,6 +281,29 @@ RVOP(
         RV_EXC_MISALIGN_HANDLER(pc, INSN, false, 0);
 #endif
         LOOKUP_OR_UPDATE_BRANCH_HISTORY_TABLE();
+
+#if RV32_HAS(SYSTEM)
+        /*
+         * relocate_enable_mmu is the first function called to set up the MMU.
+         * Inside the function, at address 0x98, an invalid PTE is accessed,
+         * causing a fetch page fault and trapping into the trap_handler, and
+         * it will not return via sret.
+         *
+         * After the jalr instruction at physical address 0xc00000b4
+         * (the final instruction of relocate_enable_mmu), the MMU becomes
+         * available.
+         *
+         * Based on this, we need to manually escape from the trap_handler after
+         * the jalr instruction is executed.
+         */
+        if (!reloc_enable_mmu && reloc_enable_mmu_jalr_addr == 0xc00000b4) {
+            reloc_enable_mmu = true;
+            need_retranslate = true;
+            rv->is_trapped = false;
+        }
+
+#endif /* RV32_HAS(SYSTEM) */
+
         goto end_op;
     },
     GEN({
@@ -312,7 +347,9 @@ RVOP(
             }, );                                                  \
         PC += 4;                                                   \
         last_pc = PC;                                              \
+        IIF(RV32_HAS(SYSTEM)(if (!rv->is_trapped), ))              \
         MUST_TAIL return untaken->impl(rv, untaken, cycle, PC);    \
+        goto end_op;                                               \
     }                                                              \
     is_branch_taken = true;                                        \
     PC += ir->imm;                                                 \
@@ -331,6 +368,7 @@ RVOP(
                     goto end_op;                                   \
             }, );                                                  \
         last_pc = PC;                                              \
+        IIF(RV32_HAS(SYSTEM)(if (!rv->is_trapped), ))              \
         MUST_TAIL return taken->impl(rv, taken, cycle, PC);        \
     }                                                              \
     goto end_op;
@@ -512,8 +550,8 @@ RVOP(
 RVOP(
     lb,
     {
-        rv->X[ir->rd] =
-            sign_extend_b(rv->io.mem_read_b(rv, rv->X[ir->rs1] + ir->imm));
+        uint32_t addr = rv->X[ir->rs1] + ir->imm;
+        rv->X[ir->rd] = sign_extend_b(rv->io.mem_read_b(rv, addr));
     },
     GEN({
         mem;
@@ -561,7 +599,10 @@ RVOP(
 /* LBU: Load Byte Unsigned */
 RVOP(
     lbu,
-    { rv->X[ir->rd] = rv->io.mem_read_b(rv, rv->X[ir->rs1] + ir->imm); },
+    {
+        uint32_t addr = rv->X[ir->rs1] + ir->imm;
+        rv->X[ir->rd] = rv->io.mem_read_b(rv, addr);
+    },
     GEN({
         mem;
         rald, VR0, rs1;
@@ -597,7 +638,10 @@ RVOP(
 /* SB: Store Byte */
 RVOP(
     sb,
-    { rv->io.mem_write_b(rv, rv->X[ir->rs1] + ir->imm, rv->X[ir->rs2]); },
+    {
+        const uint32_t addr = rv->X[ir->rs1] + ir->imm;
+        rv->io.mem_write_b(rv, addr, rv->X[ir->rs2]);
+    },
     GEN({
         mem;
         rald, VR0, rs1;
@@ -1023,6 +1067,7 @@ RVOP(
         rv->csr_sstatus |= SSTATUS_SPIE;
 
         rv->PC = rv->csr_sepc;
+
         return true;
     },
     GEN({
@@ -2004,7 +2049,12 @@ RVOP(
                 goto end_op;
 #endif
             last_pc = PC;
-            MUST_TAIL return taken->impl(rv, taken, cycle, PC);
+
+#if RV32_HAS(SYSTEM)
+            if (!rv->is_trapped)
+#endif
+                MUST_TAIL
+                return taken->impl(rv, taken, cycle, PC);
         }
         goto end_op;
     },
@@ -2165,7 +2215,11 @@ RVOP(
                 goto end_op;
 #endif
             last_pc = PC;
-            MUST_TAIL return taken->impl(rv, taken, cycle, PC);
+#if RV32_HAS(SYSTEM)
+            if (!rv->is_trapped)
+#endif
+                MUST_TAIL
+                return taken->impl(rv, taken, cycle, PC);
         }
         goto end_op;
     },
@@ -2199,7 +2253,13 @@ RVOP(
 #endif
             PC += 2;
             last_pc = PC;
-            MUST_TAIL return untaken->impl(rv, untaken, cycle, PC);
+#if RV32_HAS(SYSTEM)
+            if (!rv->is_trapped)
+#endif
+                MUST_TAIL
+                return untaken->impl(rv, untaken, cycle, PC);
+
+            goto end_op;
         }
         is_branch_taken = true;
         PC += ir->imm;
@@ -2213,7 +2273,11 @@ RVOP(
                 goto end_op;
 #endif
             last_pc = PC;
-            MUST_TAIL return taken->impl(rv, taken, cycle, PC);
+#if RV32_HAS(SYSTEM)
+            if (!rv->is_trapped)
+#endif
+                MUST_TAIL
+                return taken->impl(rv, taken, cycle, PC);
         }
         goto end_op;
     },
@@ -2256,7 +2320,13 @@ RVOP(
 #endif
             PC += 2;
             last_pc = PC;
-            MUST_TAIL return untaken->impl(rv, untaken, cycle, PC);
+#if RV32_HAS(SYSTEM)
+            if (!rv->is_trapped)
+#endif
+                MUST_TAIL
+                return untaken->impl(rv, untaken, cycle, PC);
+
+            goto end_op;
         }
         is_branch_taken = true;
         PC += ir->imm;
@@ -2270,7 +2340,11 @@ RVOP(
                 goto end_op;
 #endif
             last_pc = PC;
-            MUST_TAIL return taken->impl(rv, taken, cycle, PC);
+#if RV32_HAS(SYSTEM)
+            if (!rv->is_trapped)
+#endif
+                MUST_TAIL
+                return taken->impl(rv, taken, cycle, PC);
         }
         goto end_op;
     },

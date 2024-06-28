@@ -169,6 +169,8 @@ enum SV32_PTE_PERM {
     RESRV_PAGE1 = 0b0101,
     RESRV_PAGE2 = 0b1101,
 };
+#define RV_INT_STI_SHIFT 5
+#define RV_INT_STI (1 << RV_INT_STI_SHIFT)
 
 /*
  * SBI functions must return a pair of values:
@@ -273,16 +275,20 @@ enum SV32_PTE_PERM {
 /* clang-format off */
 enum TRAP_CODE {
 #if !RV32_HAS(EXT_C)
-    INSN_MISALIGNED = 0,       /* Instruction address misaligned */
+    INSN_MISALIGNED = 0,                       /* Instruction address misaligned */
 #endif /* !RV32_HAS(EXT_C) */
-    ILLEGAL_INSN = 2,          /* Illegal instruction */
-    BREAKPOINT = 3,            /* Breakpoint */
-    LOAD_MISALIGNED = 4,       /* Load address misaligned */
-    STORE_MISALIGNED = 6,      /* Store/AMO address misaligned */
+    ILLEGAL_INSN = 2,                          /* Illegal instruction */
+    BREAKPOINT = 3,                            /* Breakpoint */
+    LOAD_MISALIGNED = 4,                       /* Load address misaligned */
+    STORE_MISALIGNED = 6,                      /* Store/AMO address misaligned */
 #if RV32_HAS(SYSTEM)
-    PAGEFAULT_INSN = 12,       /* Instruction page fault */
-    PAGEFAULT_LOAD = 13,       /* Load page fault */
-    PAGEFAULT_STORE = 15,      /* Store page fault */
+    PAGEFAULT_INSN = 12,                       /* Instruction page fault */
+    PAGEFAULT_LOAD = 13,                       /* Load page fault */
+    PAGEFAULT_STORE = 15,                      /* Store page fault */
+    SUPERVISOR_SW_INTR = (1U << 31) | 1,       /* Supervisor software interrupt */
+    SUPERVISOR_TIMER_INTR = (1U << 31) | 5,    /* Supervisor timer interrupt */
+    SUPERVISOR_EXTERNAL_INTR = (1U << 31) | 9, /* Supervisor external interrupt */
+    ECALL_U = 8,                               /* Environment call from U-mode */
 #endif /* RV32_HAS(SYSTEM) */
 #if !RV32_HAS(SYSTEM)
     ECALL_M = 11,              /* Environment call from M-mode */
@@ -295,23 +301,25 @@ enum TRAP_CODE {
  * into a cause and tval identifier respectively.
  */
 /* clang-format off */
-#define SET_CAUSE_AND_TVAL_THEN_TRAP(rv, cause, tval)       \
-    {                                                       \
-        /*                                                  \
-         * To align rv32emu behavior with Spike             \
-         *                                                  \
-         * If not in system mode, the __trap_handler        \
-         * should be be invoked                             \
-         */                                                 \
-        IIF(RV32_HAS(SYSTEM))(rv->is_trapped = true;, );    \
-        if(RV_PRIV_IS_U_OR_S_MODE()){                       \
-            rv->csr_scause = cause;                         \
-            rv->csr_stval = tval;                           \
-        } else {                                            \
-            rv->csr_mcause = cause;                         \
-            rv->csr_mtval = tval;                           \
-        }                                                   \
-        rv->io.on_trap(rv);                                 \
+#define SET_CAUSE_AND_TVAL_THEN_TRAP(rv, cause, tval)                          \
+    {                                                                          \
+        /*                                                                     \
+         * To align rv32emu behavior with Spike                                \
+         *                                                                     \
+         * If not in system mode, the __trap_handler                           \
+         * should be be invoked                                                \
+         *                                                                     \
+         * FIXME: ECALL_U cannot be trap directly to __trap_handler            \
+         */                                                                    \
+        IIF(RV32_HAS(SYSTEM))(if (cause != ECALL_U) rv->is_trapped = true;, ); \
+        if (RV_PRIV_IS_U_OR_S_MODE()) {                                        \
+            rv->csr_scause = cause;                                            \
+            rv->csr_stval = tval;                                              \
+        } else {                                                               \
+            rv->csr_mcause = cause;                                            \
+            rv->csr_mtval = tval;                                              \
+        }                                                                      \
+        rv->io.on_trap(rv);                                                    \
     }
 /* clang-format on */
 
@@ -517,7 +525,9 @@ typedef struct {
 /* FIXME: replace with kernel image, dtb, etc */
 #if RV32_HAS(SYSTEM)
 typedef struct {
-    char *elf_program;
+    char *kernel;
+    char *initrd;
+    char *dtb;
 } vm_system_t;
 #endif /* SYSTEM */
 
@@ -531,6 +541,12 @@ typedef struct {
 } vm_data_t;
 
 typedef struct {
+    /* uart object */
+    u8250_state_t *uart;
+
+    /* plic object */
+    plic_t *plic;
+
     /* vm memory object */
     memory_t *mem;
 
