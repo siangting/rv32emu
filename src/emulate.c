@@ -73,6 +73,10 @@ enum {
 #undef _
 };
 
+static uint32_t reloc_enable_mmu_jalr_addr;
+static bool reloc_enable_mmu = false;
+static bool need_retranslate = false;
+static bool satp_changed = false;
 static void rv_trap_default_handler(riscv_t *rv)
 {
     rv->csr_mepc += rv->compressed ? 2 : 4;
@@ -89,7 +93,6 @@ static void trap_handler(riscv_t *rv UNUSED) {}
 #endif
 
 bool can_trapped = false;
-uint32_t satp_cnt;
 
 /* When a trap occurs in M-mode, mtval is either initialized to zero or
  * populated with exception-specific details to assist software in managing
@@ -149,7 +152,7 @@ static jmp_buf nested_env;
             break;                                                            \
         }                                                                     \
         /* block escaping for trap handling */                                \
-        if (satp_cnt >= 2 && rv->is_trapped) {                                \
+        if (rv->is_trapped) {                                                 \
             trap_handler(rv);                                                 \
         }                                                                     \
     }
@@ -173,8 +176,7 @@ RV_TRAP_LIST
         rv->compressed = compress;                                    \
         rv->csr_cycle = cycle;                                        \
         rv->PC = PC;                                                  \
-        if (satp_cnt >= 2)                                            \
-            rv->is_trapped = true;                                    \
+        rv->is_trapped = true;                                        \
         rv_trap_##type##_misaligned(rv, IIF(IO)(addr, mask_or_pc));   \
         return false;                                                 \
     }
@@ -299,7 +301,7 @@ static uint32_t csr_csrrw(riscv_t *rv, uint32_t csr, uint32_t val)
             *c = 0; /* virtual mem addr maps to same
                      * physical mem addr directly
                      */
-        satp_cnt++;
+        satp_changed = true;
     } else {
         *c = val;
     }
@@ -678,6 +680,8 @@ int found = false;
 
 static void block_translate(riscv_t *rv, block_t *block)
 {
+retranslate:
+    memset(block, 0, sizeof(block_t));
     block->pc_start = block->pc_end = rv->PC;
 
     rv_insn_t *prev_ir = NULL;
@@ -693,6 +697,12 @@ static void block_translate(riscv_t *rv, block_t *block)
 
         /* fetch the next instruction */
         uint32_t insn = rv->io.mem_ifetch(rv, block->pc_end);
+
+        if (!insn && need_retranslate) {
+            need_retranslate = false;
+            goto retranslate;
+        }
+
         assert(insn);
 
         /* decode the instruction */
@@ -907,6 +917,10 @@ static block_t *prev = NULL;
 static block_t *block_find_or_translate(riscv_t *rv)
 {
 #if !RV32_HAS(JIT)
+    if (satp_changed) {
+        block_map_clear(rv);
+        satp_changed = false;
+    }
     block_map_t *map = &rv->block_map;
     /* lookup the next block in the block map */
     block_t *next = block_find(map, rv->PC);
@@ -1143,9 +1157,7 @@ void rv_step(void *arg)
         }
 
         if (rv_has_plic_trap(rv)) {
-            if (satp_cnt >= 2) {
-                rv->is_trapped = true;
-            }
+            rv->is_trapped = true;
             uint32_t intr_applicable = rv->csr_sip & rv->csr_sie;
             uint8_t intr_idx = ilog2(intr_applicable);
             switch (intr_idx) {
@@ -1185,7 +1197,7 @@ void rv_step(void *arg)
          * the previous block.
          */
 
-if (prev) {
+        if (prev) {
             rv_insn_t *last_ir = prev->ir_tail;
             /* chain block */
             if (!insn_is_unconditional_branch(last_ir->opcode)) {
@@ -1285,17 +1297,18 @@ static void trap_handler(riscv_t *rv)
     rv_insn_t *ir = mpool_alloc(rv->block_ir_mp);
     assert(ir);
 
-
     uint32_t insn;
     while (rv->is_trapped) { /* set to false by sret/mret implementation */
         insn = rv->io.mem_ifetch(rv, rv->PC);
         assert(insn);
 
         rv_decode(ir, insn);
+        reloc_enable_mmu_jalr_addr = rv->PC;
+
         ir->impl = dispatch_table[ir->opcode];
         rv->compressed = is_compressed(insn);
         ir->impl(rv, ir, rv->csr_cycle, rv->PC);
-    };
+    }
 }
 
 static bool ppn_is_valid(riscv_t *rv, uint32_t ppn)
@@ -1318,8 +1331,7 @@ static bool ppn_is_valid(riscv_t *rv, uint32_t ppn)
  */
 static uint32_t *mmu_walk(riscv_t *rv,
                           const uint32_t addr,
-                          uint32_t *level,
-                          uint32_t **pte_ref)
+                          uint32_t *level)
 {
     vm_attr_t *attr = PRIV(rv);
     uint32_t ppn = rv->csr_satp & MASK(22);
@@ -1333,7 +1345,6 @@ static uint32_t *mmu_walk(riscv_t *rv,
         uint32_t vpn =
             (addr >> RV_PG_SHIFT >> (i * (RV_PG_SHIFT - 2))) & MASK(10);
         uint32_t *pte = page_table + vpn;
-        *pte_ref = pte;
 
         /* PTE XWRV bit in order */
         uint8_t XWRV_bit = (*pte & MASK(4));
@@ -1375,25 +1386,54 @@ static uint32_t *mmu_walk(riscv_t *rv,
 /* FIXME: handle access fault, addr out of range check */
 #define MMU_FAULT_CHECK(op, rv, pte, addr, access_bits) \
     mmu_##op##_fault_check(rv, pte, addr, access_bits)
-#define MMU_FAULT_CHECK_IMPL(op, pgfault)                                   \
-    static bool mmu_##op##_fault_check(riscv_t *rv, uint32_t *pte,          \
-                                       uint32_t addr, uint32_t access_bits) \
-    {                                                                       \
-        if (!(pte && (*pte & access_bits))) {                               \
-            if (satp_cnt >= 2)                                              \
-                rv->is_trapped = true;                                      \
-            rv_trap_##pgfault(rv, addr);                                    \
-            return false;                                                   \
-        }                                                                   \
-        /* PTE not found, map it in handler */                              \
-        if (!pte) {                                                         \
-            if (satp_cnt >= 2)                                              \
-                rv->is_trapped = true;                                      \
-            rv_trap_##pgfault(rv, addr);                                    \
-            return false;                                                   \
-        }                                                                   \
-        /* valid PTE */                                                     \
-        return true;                                                        \
+#define MMU_FAULT_CHECK_IMPL(op, pgfault)                                     \
+    static bool mmu_##op##_fault_check(riscv_t *rv, uint32_t *pte,            \
+                                       uint32_t addr, uint32_t access_bits)   \
+    {                                                                         \
+        if (pte && (!(*pte & PTE_V))) {                                       \
+            rv->is_trapped = true;                                            \
+            rv_trap_##pgfault(rv, addr);                                      \
+            return false;                                                     \
+        }                                                                     \
+        if (!(pte && (*pte & access_bits))) {                                 \
+            rv->is_trapped = true;                                            \
+            rv_trap_##pgfault(rv, addr);                                      \
+            return false;                                                     \
+        }                                                                     \
+        /*                                                                    \
+         * (1) When MXR=0, only loads from pages marked readable (R=1) will   \
+         * succeed.                                                           \
+         *                                                                    \
+         * (2) When MXR=1, loads from pages marked either readable or         \
+         * executable (R=1 or X=1) will succeed.                              \
+         */                                                                   \
+        if (pte && ((!(SSTATUS_MXR & rv->csr_sstatus) && !(*pte & PTE_R) &&   \
+                     (access_bits == PTE_R)) ||                               \
+                    ((SSTATUS_MXR & rv->csr_sstatus) &&                       \
+                     !((*pte & PTE_R) | (*pte & PTE_X)) &&                    \
+                     (access_bits == PTE_R)))) {                              \
+            rv->is_trapped = true;                                            \
+            rv_trap_##pgfault(rv, addr);                                      \
+            return false;                                                     \
+        }                                                                     \
+        /*                                                                    \
+         * When SUM=0, S-mode memory accesses to pages that are accessible by \
+         * U-mode will fault.                                                 \
+         */                                                                   \
+        if (pte && rv->priv_mode == RV_PRIV_S_MODE &&                         \
+            !(SSTATUS_SUM & rv->csr_sstatus) && (*pte & PTE_U)) {             \
+            rv->is_trapped = true;                                            \
+            rv_trap_##pgfault(rv, addr);                                      \
+            return false;                                                     \
+        }                                                                     \
+        /* PTE not found, map it in handler */                                \
+        if (!pte) {                                                           \
+            rv->is_trapped = true;                                            \
+            rv_trap_##pgfault(rv, addr);                                      \
+            return false;                                                     \
+        }                                                                     \
+        /* valid PTE */                                                       \
+        return true;                                                          \
     }
 
 MMU_FAULT_CHECK_IMPL(ifetch, pagefault_insn)
@@ -1415,13 +1455,16 @@ uint32_t mmu_ifetch(riscv_t *rv, const uint32_t addr)
         return memory_ifetch(addr);
 
     uint32_t level;
-    uint32_t *pte_ref;
-    uint32_t *pte = mmu_walk(rv, addr, &level, &pte_ref);
+    uint32_t *pte = mmu_walk(rv, addr, &level);
+
     bool ok = MMU_FAULT_CHECK(ifetch, rv, pte, addr, PTE_X);
 
+    if (need_retranslate) {
+        return 0;
+    }
+
     if (unlikely(!ok)) {
-        pte = mmu_walk(rv, addr, &level, &pte_ref);
-        pte = pte_ref;
+        pte = mmu_walk(rv, addr, &level);
     }
 
     get_ppn_and_offset(ppn, offset);
@@ -1504,12 +1547,10 @@ uint32_t mmu_read_w(riscv_t *rv, const uint32_t addr)
         return memory_read_w(addr);
 
     uint32_t level;
-    uint32_t *pte_ref;
-    uint32_t *pte = mmu_walk(rv, addr, &level, &pte_ref);
+    uint32_t *pte = mmu_walk(rv, addr, &level);
     bool ok = MMU_FAULT_CHECK(read, rv, pte, addr, PTE_R);
     if (unlikely(!ok)) {
-        pte = mmu_walk(rv, addr, &level, &pte_ref);
-        pte = pte_ref;
+        pte = mmu_walk(rv, addr, &level);
     }
 
     {
@@ -1529,12 +1570,10 @@ uint16_t mmu_read_s(riscv_t *rv, const uint32_t addr)
         return memory_read_s(addr);
 
     uint32_t level;
-    uint32_t *pte_ref;
-    uint32_t *pte = mmu_walk(rv, addr, &level, &pte_ref);
+    uint32_t *pte = mmu_walk(rv, addr, &level);
     bool ok = MMU_FAULT_CHECK(read, rv, pte, addr, PTE_R);
     if (unlikely(!ok)) {
-        pte = mmu_walk(rv, addr, &level, &pte_ref);
-        pte = pte_ref;
+        pte = mmu_walk(rv, addr, &level);
     }
 
     {
@@ -1553,12 +1592,10 @@ uint8_t mmu_read_b(riscv_t *rv, const uint32_t addr)
         return memory_read_b(addr);
 
     uint32_t level;
-    uint32_t *pte_ref;
-    uint32_t *pte = mmu_walk(rv, addr, &level, &pte_ref);
+    uint32_t *pte = mmu_walk(rv, addr, &level);
     bool ok = MMU_FAULT_CHECK(read, rv, pte, addr, PTE_R);
     if (unlikely(!ok)) {
-        pte = mmu_walk(rv, addr, &level, &pte_ref);
-        pte = pte_ref;
+        pte = mmu_walk(rv, addr, &level);
     }
 
     {
@@ -1578,12 +1615,10 @@ void mmu_write_w(riscv_t *rv, const uint32_t addr, const uint32_t val)
         return memory_write_w(addr, (uint8_t *) &val);
 
     uint32_t level;
-    uint32_t *pte_ref;
-    uint32_t *pte = mmu_walk(rv, addr, &level, &pte_ref);
+    uint32_t *pte = mmu_walk(rv, addr, &level);
     bool ok = MMU_FAULT_CHECK(write, rv, pte, addr, PTE_W);
     if (unlikely(!ok)) {
-        pte = mmu_walk(rv, addr, &level, &pte_ref);
-        pte = pte_ref;
+        pte = mmu_walk(rv, addr, &level);
     }
 
     {
@@ -1605,12 +1640,10 @@ void mmu_write_s(riscv_t *rv, const uint32_t addr, const uint16_t val)
         return memory_write_s(addr, (uint8_t *) &val);
 
     uint32_t level;
-    uint32_t *pte_ref;
-    uint32_t *pte = mmu_walk(rv, addr, &level, &pte_ref);
+    uint32_t *pte = mmu_walk(rv, addr, &level);
     bool ok = MMU_FAULT_CHECK(write, rv, pte, addr, PTE_W);
     if (unlikely(!ok)) {
-        pte = mmu_walk(rv, addr, &level, &pte_ref);
-        pte = pte_ref;
+        pte = mmu_walk(rv, addr, &level);
     }
 
     {
@@ -1630,12 +1663,10 @@ void mmu_write_b(riscv_t *rv, const uint32_t addr, const uint8_t val)
         return memory_write_b(addr, (uint8_t *) &val);
 
     uint32_t level;
-    uint32_t *pte_ref;
-    uint32_t *pte = mmu_walk(rv, addr, &level, &pte_ref);
+    uint32_t *pte = mmu_walk(rv, addr, &level);
     bool ok = MMU_FAULT_CHECK(write, rv, pte, addr, PTE_W);
     if (unlikely(!ok)) {
-        pte = mmu_walk(rv, addr, &level, &pte_ref);
-        pte = pte_ref;
+        pte = mmu_walk(rv, addr, &level);
     }
 
     {

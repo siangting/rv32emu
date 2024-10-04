@@ -209,8 +209,16 @@ RVOP(
  */
 #if !RV32_HAS(JIT)
 #define LOOKUP_OR_UPDATE_BRANCH_HISTORY_TABLE()                               \
-    /* lookup branch history table */                                         \
-    if(!rv->is_trapped){ \
+    /*
+     * lookup branch history table
+     *
+     * When handling trap, the branch history table should not be lookup since
+     * it causes return from the trap_handler.
+     *
+     * In addition, before relocate_enable_mmu, the block maybe retranslated,
+     * thus the branch history lookup table should not be updated too.
+     */                                                                       \
+    if(!rv->is_trapped && !reloc_enable_mmu){                                 \
         for (int i = 0; i < HISTORY_SIZE; i++) {                              \
             if (ir->branch_table->PC[i] == PC) {                              \
                 MUST_TAIL return ir->branch_table->target[i]->impl(           \
@@ -226,7 +234,6 @@ RVOP(
                 (ir->branch_table->idx + 1) % HISTORY_SIZE;                   \
             MUST_TAIL return block->ir_head->impl(rv, block->ir_head, cycle,  \
                                                   PC);                        \
-        } else {\
 	}\
     }
 #else
@@ -272,7 +279,6 @@ RVOP(
         //if(rv->PC == 0xc00000b4){
 	//	rv->is_trapped = false;
 	//}
-
         const uint32_t pc = PC;
 
 
@@ -283,12 +289,31 @@ RVOP(
         if (ir->rd)
             rv->X[ir->rd] = pc + 4;
 
-
         /* check instruction misaligned */
 #if !RV32_HAS(EXT_C)
         RV_EXC_MISALIGN_HANDLER(pc, insn, false, 0);
 #endif
         LOOKUP_OR_UPDATE_BRANCH_HISTORY_TABLE();
+
+	/*
+	 * relocate_enable_mmu is the first function called to set up the MMU.
+	 * Inside the function, at address 0x98, an invalid PTE is accessed,
+	 * causing a fetch page fault and trapping into the trap_handler, and
+	 * it will not return via sret.
+	 *
+	 * After the jalr instruction at physical address 0xc00000b4
+	 * (the final instruction of relocate_enable_mmu), the MMU becomes
+	 * available.
+	 *
+	 * Based on this, we need to manually escape from the trap_handler after
+	 * the jalr instruction is executed.
+	 */
+	if(!reloc_enable_mmu && reloc_enable_mmu_jalr_addr == 0xc00000b4){
+		reloc_enable_mmu = true;
+		need_retranslate = true;
+		rv->is_trapped = false;
+	}
+
         goto end_op;
     },
     GEN({
