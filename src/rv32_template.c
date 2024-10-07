@@ -225,7 +225,7 @@ RVOP(
                     rv, ir->branch_table->target[i], cycle, PC);              \
             }                                                                 \
         }                                                                     \
-        block_t *block = block_find(&rv->block_map, PC);                      \
+        block_t *block = block_find(&rv->block_map, PC, rv->csr_satp);                      \
         if (block) {                                                          \
             /* update branch history table */                                 \
             ir->branch_table->PC[ir->branch_table->idx] = PC;                 \
@@ -1070,6 +1070,8 @@ RVOP(
         rv->csr_sstatus |= SSTATUS_SPIE;
 
         rv->PC = rv->csr_sepc;
+
+	//rv_restore_state(rv);
 
         return true;
     },

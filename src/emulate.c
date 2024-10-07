@@ -76,7 +76,6 @@ enum {
 static uint32_t reloc_enable_mmu_jalr_addr;
 static bool reloc_enable_mmu = false;
 static bool need_retranslate = false;
-static bool satp_changed = false;
 static void rv_trap_default_handler(riscv_t *rv)
 {
     rv->csr_mepc += rv->compressed ? 2 : 4;
@@ -85,6 +84,17 @@ static void rv_trap_default_handler(riscv_t *rv)
 
 #if RV32_HAS(SYSTEM)
 static void trap_handler(riscv_t *rv);
+uint32_t save_X[32];
+void rv_save_state(riscv_t *rv){
+	for(int i = 0; i < 32; i++){
+		save_X[i] = rv->X[i];
+	}
+}
+void rv_restore_state(riscv_t *rv){
+	for(int i = 0; i < 32; i++){
+		rv->X[i] = save_X[i];
+	}
+}
 #else
 /* should not be called in non-SYSTEM mode since default trap handler is capable
  * to handle traps
@@ -115,6 +125,7 @@ static jmp_buf nested_env;
 #define TRAP_HANDLER_IMPL(type, code)                                         \
     static void rv_trap_##type(riscv_t *rv, uint32_t mtval)                   \
     {                                                                         \
+	rv_save_state(rv);\
         /* m/stvec (Machine/Supervisor Trap-Vector Base Address Register)     \
          * m/stvec[MXLEN-1:2]: vector base address                            \
          * m/stvec[1:0] : vector mode                                         \
@@ -301,7 +312,9 @@ static uint32_t csr_csrrw(riscv_t *rv, uint32_t csr, uint32_t val)
             *c = 0; /* virtual mem addr maps to same
                      * physical mem addr directly
                      */
-        satp_changed = true;
+
+	/* different satp of process could same same VA */
+	block_map_clear(rv);
     } else {
         *c = val;
     }
@@ -418,7 +431,7 @@ static void block_insert(block_map_t *map, const block_t *block)
 }
 
 /* try to locate an already translated block in the block map */
-static block_t *block_find(const block_map_t *map, const uint32_t addr)
+static block_t *block_find(const block_map_t *map, const uint32_t addr, uint32_t satp)
 {
     assert(map);
     uint32_t index = map_hash(addr);
@@ -430,7 +443,11 @@ static block_t *block_find(const block_map_t *map, const uint32_t addr)
         if (!block)
             return NULL;
 
-        if (block->pc_start == addr)
+        if (block->pc_start == addr && block->satp != satp){
+		printf("not same!!\n");
+	}
+
+        if (block->pc_start == addr && block->satp == satp)
             return block;
     }
     return NULL;
@@ -471,6 +488,7 @@ static bool is_branch_taken = false;
 
 /* record the program counter of the previous block */
 static uint32_t last_pc = 0;
+static uint32_t last_satp = 0;
 
 #if RV32_HAS(JIT)
 static set_t pc_set;
@@ -479,6 +497,7 @@ static bool has_loops = false;
 
 static void emu_update_uart_interrupts(riscv_t *rv);
 static uint32_t peripheral_update_ctr = 64;
+static block_t *glob_block;
 
 /* Interpreter-based execution path */
 #define RVOP(inst, code, asm)                                         \
@@ -665,6 +684,15 @@ FORCE_INLINE bool insn_is_unconditional_branch(uint8_t opcode)
     case rv_insn_jalr:
     case rv_insn_sret:
     case rv_insn_mret:
+    case rv_insn_csrrw:
+    case rv_insn_csrrc:
+    case rv_insn_csrrs:
+    case rv_insn_csrrwi:
+    case rv_insn_csrrci:
+    case rv_insn_csrrsi:
+    case rv_insn_fence:
+    case rv_insn_fencei:
+    case rv_insn_sfencevma:
 #if RV32_HAS(EXT_C)
     case rv_insn_cj:
     case rv_insn_cjalr:
@@ -681,7 +709,6 @@ int found = false;
 static void block_translate(riscv_t *rv, block_t *block)
 {
 retranslate:
-    memset(block, 0, sizeof(block_t));
     block->pc_start = block->pc_end = rv->PC;
 
     rv_insn_t *prev_ir = NULL;
@@ -711,6 +738,10 @@ retranslate:
             rv_trap_illegal_insn(rv, insn);
             break;
         }
+	//if(ir->opcode == 0x2e){
+	//	printf("pc: %x\n", block->pc_end);
+	//	exit(1);
+	//}
         ir->impl = dispatch_table[ir->opcode];
         ir->pc = block->pc_end; /* compute the end of pc */
         block->pc_end += is_compressed(insn) ? 2 : 4;
@@ -917,13 +948,9 @@ static block_t *prev = NULL;
 static block_t *block_find_or_translate(riscv_t *rv)
 {
 #if !RV32_HAS(JIT)
-    if (satp_changed) {
-        block_map_clear(rv);
-        satp_changed = false;
-    }
     block_map_t *map = &rv->block_map;
     /* lookup the next block in the block map */
-    block_t *next = block_find(map, rv->PC);
+    block_t *next = block_find(map, rv->PC, rv->csr_satp);
 #else
     /* lookup the next block in the block cache */
     block_t *next = (block_t *) cache_get(rv->block_cache, rv->PC, true);
@@ -938,6 +965,10 @@ static block_t *block_find_or_translate(riscv_t *rv)
 #endif
         /* allocate a new block */
         next = block_alloc(rv);
+	next->satp = rv->csr_satp;
+	//if(next->satp != 0)
+	//	printf("block->satp != 0: %x\n", next->satp);
+	next->priv_mode = rv->priv_mode;
         block_translate(rv, next);
 
         optimize_constant(rv, next);
@@ -1121,6 +1152,24 @@ static bool rv_has_plic_trap(riscv_t *rv)
             (rv->csr_sip & rv->csr_sie));
 }
 
+bool has_mem_op(block_t *b){
+	rv_insn_t *ir = b->ir_head;
+
+	for(int i = 0; i < b->n_insn; i++){
+		if(IF_insn(ir, lw) ||
+			IF_insn(ir, lb) ||
+			IF_insn(ir, lh) ||
+			IF_insn(ir, sw) ||
+			IF_insn(ir, sb) ||
+			IF_insn(ir, sh)
+			)
+			return true;
+		ir = ir->next;
+	}
+
+	return false;
+}
+
 void rv_step(void *arg)
 {
     assert(arg);
@@ -1178,18 +1227,32 @@ void rv_step(void *arg)
         if (prev && prev->pc_start != last_pc) {
             /* update previous block */
 #if !RV32_HAS(JIT)
-            prev = block_find(&rv->block_map, last_pc);
+            prev = block_find(&rv->block_map, last_pc, last_satp);
 #else
             prev = cache_get(rv->block_cache, last_pc, false);
 #endif
         }
+
+//	if(prev &&
+//	(
+//	IF_insn(prev->ir_tail, beq) ||
+//	IF_insn(prev->ir_tail, bne) ||
+//	IF_insn(prev->ir_tail, blt) ||
+//	IF_insn(prev->ir_tail, bge) ||
+//	IF_insn(prev->ir_tail, bltu) ||
+//	IF_insn(prev->ir_tail, bgeu)
+//
+//	 )) {
+//		prev = NULL;
+//	}
+
         /* lookup the next block in block map or translate a new block,
          * and move onto the next block.
          */
         block_t *block = block_find_or_translate(rv);
         /* by now, a block should be available */
         assert(block);
-        // assert(block->n_insn == 1);
+	glob_block = block;
 
         /* After emulating the previous block, it is determined whether the
          * branch is taken or not. The IR array of the current block is then
@@ -1197,12 +1260,63 @@ void rv_step(void *arg)
          * the previous block.
          */
 
-        if (prev) {
+	//assert(prev->satp == block->satp);
+        if (prev && prev->satp == block->satp &&
+		IF_insn(block->ir_tail, ecall) ||
+		IF_insn(block->ir_tail, sret) ||
+		IF_insn(block->ir_tail, csrrw) ||
+		IF_insn(block->ir_tail, csrrc) ||
+		IF_insn(block->ir_tail, csrrs) ||
+		IF_insn(block->ir_tail, csrrwi) ||
+		IF_insn(block->ir_tail, csrrci) ||
+		IF_insn(block->ir_tail, csrrsi) ||
+		IF_insn(block->ir_tail, fence) ||
+		IF_insn(block->ir_tail, fencei) ||
+		IF_insn(block->ir_tail, sfencevma)
+		) {
+	}
+
+	//addr = addr & ~(4096 - 1);
+        if (prev && prev->satp == block->satp &&
+	        !has_mem_op(block) &&
+
+		!IF_insn(block->ir_tail, ecall) &&
+		!IF_insn(block->ir_tail, sret) &&
+		!IF_insn(block->ir_tail, csrrw) &&
+		!IF_insn(block->ir_tail, csrrc) &&
+		!IF_insn(block->ir_tail, csrrs) &&
+		!IF_insn(block->ir_tail, csrrwi) &&
+		!IF_insn(block->ir_tail, csrrci) &&
+		!IF_insn(block->ir_tail, csrrsi) &&
+		!IF_insn(block->ir_tail, fence) &&
+		!IF_insn(block->ir_tail, fencei) &&
+		!IF_insn(block->ir_tail, sfencevma)
+		) {
             rv_insn_t *last_ir = prev->ir_tail;
             /* chain block */
             if (!insn_is_unconditional_branch(last_ir->opcode)) {
+		const uint32_t taken_target = block->ir_head->pc & ~(4096 - 1);
+		if(taken_target - last_ir->pc > 4096)
+			goto next;
+
                 if (is_branch_taken && !last_ir->branch_taken) {
                     last_ir->branch_taken = block->ir_head;
+		    prev->has_chain = true;
+
+		    if(
+				    IF_insn(last_ir, ecall) ||
+				    IF_insn(last_ir, csrrw) ||
+				    IF_insn(last_ir, csrrs) ||
+				    IF_insn(last_ir, csrrc) ||
+				    IF_insn(last_ir, csrrwi) ||
+				    IF_insn(last_ir, csrrsi) ||
+				    IF_insn(last_ir, csrrci) ||
+				    IF_insn(last_ir, fencei) ||
+				    IF_insn(last_ir, fence) ||
+				    IF_insn(last_ir, sfencevma)
+				    ){
+		    printf("chain here\n");
+		    }
 #if RV32_HAS(JIT)
                     chain_entry_t *new_entry = mpool_alloc(rv->chain_entry_mp);
                     new_entry->block = prev;
@@ -1210,6 +1324,21 @@ void rv_step(void *arg)
 #endif
                 } else if (!is_branch_taken && !last_ir->branch_untaken) {
                     last_ir->branch_untaken = block->ir_head;
+		    prev->has_chain = true;
+
+		    if(
+				    IF_insn(last_ir, csrrw) ||
+				    IF_insn(last_ir, csrrs) ||
+				    IF_insn(last_ir, csrrc) ||
+				    IF_insn(last_ir, csrrwi) ||
+				    IF_insn(last_ir, csrrsi) ||
+				    IF_insn(last_ir, csrrci) ||
+				    IF_insn(last_ir, fencei) ||
+				    IF_insn(last_ir, fence) ||
+				    IF_insn(last_ir, sfencevma)
+				    ){
+		    printf("chain another here\n");
+		    }
 #if RV32_HAS(JIT)
                     chain_entry_t *new_entry = mpool_alloc(rv->chain_entry_mp);
                     new_entry->block = prev;
@@ -1223,6 +1352,7 @@ void rv_step(void *arg)
             ) {
                 if (!last_ir->branch_taken) {
                     last_ir->branch_taken = block->ir_head;
+		    prev->has_chain = true;
 #if RV32_HAS(JIT)
                     chain_entry_t *new_entry = mpool_alloc(rv->chain_entry_mp);
                     new_entry->block = prev;
@@ -1231,7 +1361,9 @@ void rv_step(void *arg)
                 }
             }
         }
+next:
         last_pc = rv->PC;
+        last_satp = rv->csr_satp;
 #if RV32_HAS(JIT)
 #if RV32_HAS(T2C)
         /* executed through the tier-2 JIT compiler */

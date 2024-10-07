@@ -98,6 +98,10 @@ typedef struct block {
     void *func;        /**< The function pointer of T2 machine code */
     struct list_head list;
 #endif
+
+    uint8_t priv_mode;
+    uint32_t satp;
+    bool has_chain;
 } block_t;
 
 #if RV32_HAS(JIT)
