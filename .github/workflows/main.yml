@@ -15,7 +15,7 @@ jobs:
       with:
         arch: none
         distro: none
-        base_image: "aarch64/ubuntu:22.04"
+        base_image: "--platform=linux/arm64 aarch64/ubuntu:22.04"
         # No 'sudo' is available
         install: |
           apt-get update -q -y
