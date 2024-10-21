@@ -13,9 +13,8 @@ jobs:
       # https://github.com/uraimo/run-on-arch-action
       uses: uraimo/run-on-arch-action@v2
       with:
-        arch: none
-        distro: none
-        base_image: "--platform=linux/amd64 arm64v8/ubuntu:22.04"
+        arch: aarch64
+        distro: ubuntu22.04
         # No 'sudo' is available
         install: |
           apt-get update -q -y
