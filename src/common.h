@@ -5,6 +5,8 @@
 
 #pragma once
 
+#include <stdint.h>
+
 #include "feature.h"
 
 #if defined(__GNUC__) || defined(__clang__)
@@ -27,20 +29,46 @@
 
 #define MASK(n) (~((~0U << (n))))
 
+#if defined(_MSC_VER)
+#include <intrin.h>
+static inline int clz(uint32_t v)
+{
+    uint32_t leading_zero = 0;
+    if (_BitScanReverse(&leading_zero, v))
+        return 31 - leading_zero;
+    return 32; /* undefined behavior */
+}
+#elif defined(__GNUC__) || defined(__clang__)
+static inline int clz(uint32_t v)
+{
+    return __builtin_clz(v);
+}
+#else /* generic implementation */
+static inline int clz(uint32_t v)
+{
+    /* http://graphics.stanford.edu/~seander/bithacks.html#IntegerLogDeBruijn */
+    static const uint8_t mul_debruijn[] = {
+        0, 9,  1,  10, 13, 21, 2,  29, 11, 14, 16, 18, 22, 25, 3, 30,
+        8, 12, 20, 28, 15, 17, 24, 7,  19, 27, 23, 6,  26, 5,  4, 31,
+    };
+
+    v |= v >> 1;
+    v |= v >> 2;
+    v |= v >> 4;
+    v |= v >> 8;
+    v |= v >> 16;
+
+    return mul_debruijn[(uint32_t) (v * 0x07C4ACDDU) >> 27];
+}
+#endif
+
 /*
  * Integer log base 2
- *
- * The input will be ORed with 1 to prevent x = 0 since
- * the result is undefined if x = 0
- *
  */
-#if defined(__GNUC__) || defined(__clang__)
-#define ilog2(x) 31 - __builtin_clz(x | 1)
-#elif defined(_MSC_VER)
-/* FIXME */
-#else /* unsupported compilers */
-#define ilog2(x)
-#endif
+static inline uint8_t ilog2(uint32_t x)
+{
+    return 31 - clz(x);
+}
 
 /* Alignment macro */
 #if defined(__GNUC__) || defined(__clang__)
