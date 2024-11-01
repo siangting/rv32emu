@@ -31,7 +31,7 @@
 
 #if defined(_MSC_VER)
 #include <intrin.h>
-static inline int clz(uint32_t v)
+static inline int rv_clz(uint32_t v)
 {
     uint32_t leading_zero = 0;
     if (_BitScanReverse(&leading_zero, v))
@@ -39,12 +39,14 @@ static inline int clz(uint32_t v)
     return 32; /* undefined behavior */
 }
 #elif defined(__GNUC__) || defined(__clang__)
-static inline int clz(uint32_t v)
+static inline int rv_clz(uint32_t v)
 {
+    /*  https://gcc.gnu.org/onlinedocs/gcc/Other-Builtins.html */
+    /*  If x is 0, the result is undefined. */
     return __builtin_clz(v);
 }
 #else /* generic implementation */
-static inline int clz(uint32_t v)
+static inline int rv_clz(uint32_t v)
 {
     /* http://graphics.stanford.edu/~seander/bithacks.html#IntegerLogDeBruijn */
     static const uint8_t mul_debruijn[] = {
@@ -64,10 +66,14 @@ static inline int clz(uint32_t v)
 
 /*
  * Integer log base 2
+ *
+ * The input x must not be zero.
+ * Otherwise, the result is undefined on some platform.
+ *
  */
 static inline uint8_t ilog2(uint32_t x)
 {
-    return 31 - clz(x);
+    return 31 - rv_clz(x);
 }
 
 /* Alignment macro */
