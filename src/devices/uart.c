@@ -3,17 +3,17 @@
  * "LICENSE" for information on usage and redistribution of this file.
  */
 
+#include <assert.h>
 #include <errno.h>
 #include <poll.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <assert.h>
-
-/* Emulate 8250 (plain, without loopback mode support) */
 
 #include "uart.h"
+
+/* Emulate 8250 (plain, without loopback mode support) */
 
 #define U8250_INT_THRE 1
 
