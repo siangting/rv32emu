@@ -209,7 +209,11 @@ int main(int argc, char **args)
     run_flag |= opt_prof_data << 2;
 
     vm_attr_t attr = {
+#if RV32_HAS(SYSTEM) && !defined(USE_ELF)
         .mem_size = 512 * 1024 * 1024, /* FIXME: variadic size */
+#else
+        .mem_size = MEM_SIZE, /* FIXME: variadic size */
+#endif
         .stack_size = STACK_SIZE,
         .args_offset_size = ARGS_OFFSET_SIZE,
         .argc = prog_argc,
@@ -217,7 +221,7 @@ int main(int argc, char **args)
         .log_level = 0,
         .run_flag = run_flag,
         .profile_output_file = prof_out_file,
-#if RV32_HAS(SYSTEM)
+#if RV32_HAS(SYSTEM) && !defined(USE_ELF)
         .data.system = malloc(sizeof(vm_system_t)),
 #else
         .data.user = malloc(sizeof(vm_user_t)),
@@ -225,14 +229,14 @@ int main(int argc, char **args)
         .cycle_per_step = CYCLE_PER_STEP,
         .allow_misalign = opt_misaligned,
     };
-#if defined(USE_ELF)
+#if RV32_HAS(SYSTEM) && !defined(USE_ELF)
+    assert(attr.data.system);
+    attr.data.system->kernel = "build/Image";       /* FIXME: hardcoded */
+    attr.data.system->initrd = "build/rootfs.cpio"; /* FIXME: hardcoded */
+    attr.data.system->dtb = "build/minimal.dtb";    /* FIXME: hardcoded */
+#else
     assert(attr.data.user);
     attr.data.user->elf_program = opt_prog_name;
-#elif RV32_HAS(SYSTEM)
-    assert(attr.data.system);
-    attr.data.system->kernel = "build/Image"; /* FIXME: hardcoded */
-    attr.data.system->initrd = "build/rootfs.cpio";/* FIXME: hardcoded */
-    attr.data.system->dtb = "build/minimal.dtb";/* FIXME: hardcoded */
 #endif
 
     /* create the RISC-V runtime */

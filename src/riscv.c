@@ -307,6 +307,8 @@ riscv_t *rv_create(riscv_user_t rv_attr)
         elf_delete(elf);
 
 #if RV32_HAS(SYSTEM)
+        /* this variable has external linkage to mmu_io defined in system.c */
+        extern riscv_io_t mmu_io;
         /* install the MMU I/O handlers */
         memcpy(&rv->io, &mmu_io, sizeof(riscv_io_t));
 #else
@@ -333,7 +335,7 @@ riscv_t *rv_create(riscv_user_t rv_attr)
         memcpy(&rv->io, &io, sizeof(riscv_io_t));
 #endif /* RV32_HAS(SYSTEM) */
     }
-#if RV32_HAS(SYSTEM) && !defined(USE_ELF)
+#if RV32_HAS(SYSTEM)
     else {
         /* *-----------------------------------------*
          * |              Memory layout              |
@@ -464,7 +466,7 @@ void rv_run(riscv_t *rv)
 
     vm_attr_t *attr = PRIV(rv);
     assert(attr &&
-#if RV32_HAS(SYSTEM)
+#if RV32_HAS(SYSTEM) && !defined(USE_ELF)
            attr->data.system && attr->data.system->kernel &&
            attr->data.system->initrd && attr->data.system->dtb
 #else
