@@ -190,12 +190,14 @@ static uint32_t csr_csrrw(riscv_t *rv, uint32_t csr, uint32_t val)
 
     *c = val;
 
+#if !RV32_HAS(JIT)
     /*
      * guestOS's process might have same VA,
      * so block_map cannot be reused
      */
     if (c == &rv->csr_satp)
         block_map_clear(rv);
+#endif
 
     return out;
 }
