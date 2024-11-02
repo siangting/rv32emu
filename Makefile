@@ -15,7 +15,10 @@ CFLAGS += -include src/common.h
 # However, the Linux kernel emulation includes the Image, DT, and
 # root filesystem (rootfs). Therefore, the test suite needs this
 # flag to load the ELF and differentiate it from the kernel emulation.
-USE_ELF ?= 0
+ENABLE_USE_ELF ?= 0
+ifeq ($(call has, USE_ELF), 1)
+DEFINE_USE_ELF := -DUSE_ELF
+endif
 
 ENABLE_SYSTEM ?= 0
 $(call set-feature, SYSTEM)
@@ -252,7 +255,7 @@ endif
 
 $(OUT)/%.o: src/%.c $(deps_emcc)
 	$(VECHO) "  CC\t$@\n"
-	$(Q)$(CC) -o $@ $(CFLAGS) $(CFLAGS_emcc) -c -MMD -MF $@.d $<
+	$(Q)$(CC) $(DEFINE_USE_ELF) -o $@ $(CFLAGS) $(CFLAGS_emcc) -c -MMD -MF $@.d $<
 
 $(BIN): $(OBJS) $(DEV_OBJS)
 	$(VECHO) "  LD\t$@\n"
