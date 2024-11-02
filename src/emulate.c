@@ -567,7 +567,6 @@ FORCE_INLINE bool insn_is_unconditional_branch(uint8_t opcode)
 static void block_translate(riscv_t *rv, block_t *block)
 {
 retranslate:
-    memset(block, 0, sizeof(block_t));
     block->pc_start = block->pc_end = rv->PC;
 
     rv_insn_t *prev_ir = NULL;
@@ -584,6 +583,7 @@ retranslate:
 
 #if RV32_HAS(SYSTEM)
         if (!insn && need_retranslate) {
+            memset(block, 0, sizeof(block_t));
             need_retranslate = false;
             goto retranslate;
         }
