@@ -12,6 +12,11 @@
 #include "io.h"
 #include "map.h"
 
+#if RV32_HAS(SYSTEM)
+#include "devices/plic.h"
+#include "devices/uart.h"
+#endif /* RV32_HAS(EXT_SYSTEM) */
+
 #if RV32_HAS(EXT_F)
 #define float16_t softfloat_float16_t
 #define bfloat16_t softfloat_bfloat16_t
@@ -541,11 +546,13 @@ typedef struct {
 } vm_data_t;
 
 typedef struct {
+#if RV32_HAS(SYSTEM)
     /* uart object */
     u8250_state_t *uart;
 
     /* plic object */
     plic_t *plic;
+#endif /* RV32_HAS(SYSTEM) */
 
     /* vm memory object */
     memory_t *mem;

@@ -10,10 +10,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#if RV32_HAS(SYSTEM)
-#include "plic.h"
-#endif /* RV32_HAS(SYSTEM) */
-
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h>
 #endif
