@@ -11,6 +11,12 @@ CFLAGS = -std=gnu99 -O2 -Wall -Wextra
 CFLAGS += -Wno-unused-label
 CFLAGS += -include src/common.h
 
+# In the system test suite, the executable is an ELF file.
+# However, the Linux kernel emulation includes the Image, DT, and
+# root filesystem (rootfs). Therefore, the test suite needs this
+# flag to load the ELF and differentiate it from the kernel emulation.
+USE_ELF ?= 0
+
 ENABLE_SYSTEM ?= 0
 $(call set-feature, SYSTEM)
 
