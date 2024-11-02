@@ -306,6 +306,10 @@ riscv_t *rv_create(riscv_user_t rv_attr)
 
         elf_delete(elf);
 
+#if RV32_HAS(SYSTEM)
+        /* install the MMU I/O handlers */
+        memcpy(&rv->io, &mmu_io, sizeof(riscv_io_t));
+#else
         /* install the I/O handlers */
         const riscv_io_t io = {
             /* memory read interface */
@@ -327,8 +331,9 @@ riscv_t *rv_create(riscv_user_t rv_attr)
             .on_trap = trap_handler,
         };
         memcpy(&rv->io, &io, sizeof(riscv_io_t));
+#endif /* RV32_HAS(SYSTEM) */
     }
-#if RV32_HAS(SYSTEM)
+#if RV32_HAS(SYSTEM) && !defined(USE_ELF)
     else {
         /* *-----------------------------------------*
          * |              Memory layout              |

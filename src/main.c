@@ -225,14 +225,14 @@ int main(int argc, char **args)
         .cycle_per_step = CYCLE_PER_STEP,
         .allow_misalign = opt_misaligned,
     };
-#if RV32_HAS(SYSTEM)
-    assert(attr.data.system);
-    attr.data.system->kernel = "build/Image";       /* FIXME: hardcoded */
-    attr.data.system->initrd = "build/rootfs.cpio"; /* FIXME: hardcoded */
-    attr.data.system->dtb = "build/minimal.dtb";    /* FIXME: hardcoded */
-#else
+#if defined(USE_ELF)
     assert(attr.data.user);
     attr.data.user->elf_program = opt_prog_name;
+#elif RV32_HAS(SYSTEM)
+    assert(attr.data.system);
+    attr.data.system->kernel = "build/Image"; /* FIXME: hardcoded */
+    attr.data.system->initrd = "build/rootfs.cpio";/* FIXME: hardcoded */
+    attr.data.system->dtb = "build/minimal.dtb";/* FIXME: hardcoded */
 #endif
 
     /* create the RISC-V runtime */
