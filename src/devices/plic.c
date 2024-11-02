@@ -6,9 +6,9 @@
 #include <assert.h>
 #include <stdlib.h>
 
-#include "plic.h"
 #include "../riscv.h"
 #include "../riscv_private.h"
+#include "plic.h"
 
 void plic_update_interrupts(plic_t *plic)
 {
