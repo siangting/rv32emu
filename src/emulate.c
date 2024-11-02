@@ -1203,7 +1203,15 @@ void ebreak_handler(riscv_t *rv)
 void ecall_handler(riscv_t *rv)
 {
     assert(rv);
-#if RV32_HAS(SYSTEM)
+
+/*
+ * FIXME: MMU test suite rely on rv32emu syscall instead of its own syscall
+ * table
+ */
+#if defined(ON_TEST)
+    rv->PC += 4;
+    syscall_handler(rv);
+#elif RV32_HAS(SYSTEM)
     if (rv->priv_mode == RV_PRIV_U_MODE) {
         SET_CAUSE_AND_TVAL_THEN_TRAP(rv, ECALL_U, 0);
     } else if (rv->priv_mode ==
