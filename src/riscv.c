@@ -367,8 +367,9 @@ riscv_t *rv_create(riscv_user_t rv_attr)
         /* setup PLIC */
         attr->plic = plic_new();
         assert(attr->plic);
+        attr->plic->rv = rv;
 
-        /* setup PLIC */
+        /* setup UART */
         attr->uart = u8250_new();
         assert(attr->uart);
         attr->uart->in_fd = 0;

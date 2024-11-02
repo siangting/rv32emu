@@ -47,8 +47,6 @@ OBJS_EXT :=
 
 ifeq ($(call has, SYSTEM), 1)
 OBJS_EXT += system.o
-OBJS_EXT += plic.o
-OBJS_EXT += uart.o
 endif
 
 # Integer Multiplication and Division instructions
@@ -230,11 +228,23 @@ ifeq ($(call has, GDBSTUB), 1)
 $(OBJS): $(GDBSTUB_LIB)
 endif
 
+# Peripherals for system emulation
+ifeq ($(call has, SYSTEM), 1)
+DEV_OUT := $(OUT)/devices
+DEV_SRC := src/devices
+$(DEV_OUT)/%.o: $(DEV_SRC)/%.c $(deps_emcc)
+	$(Q)mkdir -p $(DEV_OUT)
+	$(VECHO) "  CC\t$@\n"
+	$(Q)$(CC) -o $@ $(CFLAGS) $(CFLAGS_emcc) -c -MMD -MF $@.d $<
+DEV_OBJS := $(patsubst $(DEV_SRC)/%.c, $(DEV_OUT)/%.o, $(wildcard $(DEV_SRC)/*.c))
+deps += $(DEV_OBJS:%.o=%.o.d)
+endif
+
 $(OUT)/%.o: src/%.c $(deps_emcc)
 	$(VECHO) "  CC\t$@\n"
 	$(Q)$(CC) -o $@ $(CFLAGS) $(CFLAGS_emcc) -c -MMD -MF $@.d $<
 
-$(BIN): $(OBJS)
+$(BIN): $(OBJS) $(DEV_OBJS)
 	$(VECHO) "  LD\t$@\n"
 	$(Q)$(CC) -o $@ $(CFLAGS_emcc) $^ $(LDFLAGS)
 
@@ -331,7 +341,7 @@ endif
 endif
 
 clean:
-	$(RM) $(BIN) $(OBJS) $(HIST_BIN) $(HIST_OBJS) $(deps) $(WEB_FILES) $(CACHE_OUT) src/rv32_jit.c
+	$(RM) $(BIN) $(OBJS) $(DEV_OBJS) $(HIST_BIN) $(HIST_OBJS) $(deps) $(WEB_FILES) $(CACHE_OUT) src/rv32_jit.c
 distclean: clean
 	-$(RM) $(DOOM_DATA) $(QUAKE_DATA)
 	$(RM) -r $(TIMIDITY_DATA)

@@ -7,7 +7,8 @@
 #error "Do not manage to build this file unless you enable system support."
 #endif
 
-#include "plic.h"
+#include "devices/plic.h"
+#include "devices/uart.h"
 #include "riscv_private.h"
 
 void emu_update_uart_interrupts(riscv_t *rv)
@@ -18,7 +19,7 @@ void emu_update_uart_interrupts(riscv_t *rv)
         attr->plic->active |= IRQ_UART_BIT;
     } else
         attr->plic->active &= ~IRQ_UART_BIT;
-    plic_update_interrupts(rv);
+    plic_update_interrupts(attr->plic);
 }
 
 #define MMIO_PLIC 1
@@ -31,11 +32,11 @@ uint8_t ret_char;
 #define MMIO_OP(io, rw)                                           \
     IIF(io)( /* PLIC */                                           \
         IIF(rw)( /* read */                                       \
-            read_val = plic_read(rv, (addr & 0x3FFFFFF) >> 2);           \
-	    plic_update_interrupts(rv); return read_val;          \
+            read_val = plic_read(PRIV(rv)->plic, (addr & 0x3FFFFFF) >> 2);           \
+	    plic_update_interrupts(PRIV(rv)->plic); return read_val;          \
 	    ,     /* write */                                     \
-            plic_write(rv, (addr & 0x3FFFFFF) >> 2, val);   \
-            plic_update_interrupts(rv); return;                   \
+            plic_write(PRIV(rv)->plic, (addr & 0x3FFFFFF) >> 2, val);   \
+            plic_update_interrupts(PRIV(rv)->plic); return;                   \
         )                                                         \
         ,    /* UART */                                           \
         IIF(rw)( /* read */                                       \

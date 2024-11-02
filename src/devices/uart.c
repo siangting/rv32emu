@@ -1,13 +1,19 @@
+/*
+ * rv32emu is freely redistributable under the MIT License. See the file
+ * "LICENSE" for information on usage and redistribution of this file.
+ */
+
 #include <errno.h>
 #include <poll.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-
-#include "io.h"
+#include <assert.h>
 
 /* Emulate 8250 (plain, without loopback mode support) */
+
+#include "uart.h"
 
 #define U8250_INT_THRE 1
 
@@ -141,4 +147,12 @@ uint32_t u8250_read(u8250_state_t *uart, uint32_t addr)
 void u8250_write(u8250_state_t *uart, uint32_t addr, uint32_t value)
 {
     u8250_reg_write(uart, addr, value);
+}
+
+u8250_state_t *u8250_new()
+{
+    u8250_state_t *uart = calloc(1, sizeof(u8250_state_t));
+    assert(uart);
+
+    return uart;
 }

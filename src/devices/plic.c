@@ -1,9 +1,18 @@
-#include "plic.h"
+/*
+ * rv32emu is freely redistributable under the MIT License. See the file
+ * "LICENSE" for information on usage and redistribution of this file.
+ */
 
-void plic_update_interrupts(riscv_t *rv)
+#include <assert.h>
+#include <stdlib.h>
+
+#include "plic.h"
+#include "../riscv.h"
+#include "../riscv_private.h"
+
+void plic_update_interrupts(plic_t *plic)
 {
-    vm_attr_t *attr = PRIV(rv);
-    plic_t *plic = attr->plic;
+    riscv_t *rv = (riscv_t *) plic->rv;
 
     /* Update pending interrupts */
     plic->ip |= plic->active & ~plic->masked;
@@ -15,11 +24,8 @@ void plic_update_interrupts(riscv_t *rv)
         rv->csr_sip &= ~SIP_SEIP;
 }
 
-uint32_t plic_read(riscv_t *rv, const uint32_t addr)
+uint32_t plic_read(plic_t *plic, const uint32_t addr)
 {
-    vm_attr_t *attr = PRIV(rv);
-    plic_t *plic = attr->plic;
-
     /* no priority support: source priority hardwired to 1 */
     if (1 <= addr && addr <= 31)
         return 0;
@@ -54,11 +60,8 @@ uint32_t plic_read(riscv_t *rv, const uint32_t addr)
     return plic_read_val;
 }
 
-void plic_write(riscv_t *rv, const uint32_t addr, uint32_t value)
+void plic_write(plic_t *plic, const uint32_t addr, uint32_t value)
 {
-    vm_attr_t *attr = PRIV(rv);
-    plic_t *plic = attr->plic;
-
     /* no priority support: source priority hardwired to 1 */
     if (1 <= addr && addr <= 31)
         return;
@@ -80,4 +83,12 @@ void plic_write(riscv_t *rv, const uint32_t addr, uint32_t value)
     }
 
     return;
+}
+
+plic_t *plic_new()
+{
+    plic_t *plic = calloc(1, sizeof(plic_t));
+    assert(plic);
+
+    return plic;
 }
