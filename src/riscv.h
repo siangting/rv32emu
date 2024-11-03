@@ -527,21 +527,20 @@ typedef struct {
     char *elf_program;
 } vm_user_t;
 
-/* FIXME: replace with kernel image, dtb, etc */
 #if RV32_HAS(SYSTEM)
 typedef struct {
     char *kernel;
     char *initrd;
     char *dtb;
 } vm_system_t;
-#endif /* SYSTEM */
+#endif /* RV32_HAS(SYSTEM) */
 
 typedef struct {
-    vm_user_t *user;
-
-#if RV32_HAS(SYSTEM)
-    vm_system_t *system;
-#endif /* SYSTEM */
+#if !RV32_HAS(SYSTEM) || (RV32_HAS(SYSTEM) && defined(USE_ELF))
+    vm_user_t user;
+#else
+    vm_system_t system;
+#endif /* !RV32_HAS(SYSTEM) || (RV32_HAS(SYSTEM) && defined(USE_ELF)) */
 
 } vm_data_t;
 
