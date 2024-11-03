@@ -40,7 +40,7 @@ static char *opt_prog_name;
 /* target argc and argv */
 static int prog_argc;
 static char **prog_args;
-static const char *optstr = "tgqmhpd:a:";
+static const char *optstr = "tgqmhpd:a:k:i:b:";
 
 /* enable misaligned memory access */
 static bool opt_misaligned = false;
@@ -49,15 +49,29 @@ static bool opt_misaligned = false;
 static bool opt_prof_data = false;
 static char *prof_out_file;
 
+#if RV32_HAS(SYSTEM) && !defined(USE_ELF)
+/* Linux kernel data */
+static char *opt_kernel_img;
+static char *opt_rootfs_img;
+static char *opt_dtb;
+#endif
+
 static void print_usage(const char *filename)
 {
     fprintf(stderr,
             "RV32I[MAFC] Emulator which loads an ELF file to execute.\n"
             "Usage: %s [options] [filename] [arguments]\n"
             "Options:\n"
+#if !RV32_HAS(SYSTEM) || (RV32_HAS(SYSTEM) && defined(USE_ELF))
             "  -t : print executable trace\n"
+#endif
 #if RV32_HAS(GDBSTUB)
             "  -g : allow remote GDB connections (as gdbstub)\n"
+#endif
+#if RV32_HAS(SYSTEM) && !defined(USE_ELF)
+            "  -k <image> : use <image> as kernel image\n"
+            "  -i <image> : use <image> as rootfs\n"
+            "  -b <dtb> : use <dtb> as device tree blob\n"
 #endif
             "  -d [filename]: dump registers as JSON to the "
             "given file or `-` (STDOUT)\n"
@@ -79,12 +93,28 @@ static bool parse_args(int argc, char **args)
         emu_argc++;
 
         switch (opt) {
+#if !RV32_HAS(SYSTEM) || (RV32_HAS(SYSTEM) && defined(USE_ELF))
         case 't':
             opt_trace = true;
             break;
+#endif
 #if RV32_HAS(GDBSTUB)
         case 'g':
             opt_gdbstub = true;
+            break;
+#endif
+#if RV32_HAS(SYSTEM) && !defined(USE_ELF)
+        case 'k':
+            opt_kernel_img = optarg;
+            emu_argc++;
+            break;
+        case 'i':
+            opt_rootfs_img = optarg;
+            emu_argc++;
+            break;
+        case 'b':
+            opt_dtb = optarg;
+            emu_argc++;
             break;
 #endif
         case 'q':
@@ -194,6 +224,12 @@ void indirect_rv_halt()
 }
 #endif
 
+#if RV32_HAS(SYSTEM) && !defined(USE_ELF)
+/* forcely undefine MEM_SIZE to prevent any define in Makefile */
+#undef MEM_SIZE
+#define MEM_SIZE 512 * 1024 * 1024
+#endif
+
 int main(int argc, char **args)
 {
     if (argc == 1 || !parse_args(argc, args)) {
@@ -202,18 +238,16 @@ int main(int argc, char **args)
     }
 
     int run_flag = 0;
+#if !RV32_HAS(SYSTEM) || (RV32_HAS(SYSTEM) && defined(USE_ELF))
     run_flag |= opt_trace;
+#endif
 #if RV32_HAS(GDBSTUB)
     run_flag |= opt_gdbstub << 1;
 #endif
     run_flag |= opt_prof_data << 2;
 
     vm_attr_t attr = {
-#if RV32_HAS(SYSTEM) && !defined(USE_ELF)
-        .mem_size = 512 * 1024 * 1024, /* FIXME: variadic size */
-#else
-        .mem_size = MEM_SIZE, /* FIXME: variadic size */
-#endif
+        .mem_size = MEM_SIZE,
         .stack_size = STACK_SIZE,
         .args_offset_size = ARGS_OFFSET_SIZE,
         .argc = prog_argc,
@@ -221,22 +255,15 @@ int main(int argc, char **args)
         .log_level = 0,
         .run_flag = run_flag,
         .profile_output_file = prof_out_file,
-#if RV32_HAS(SYSTEM) && !defined(USE_ELF)
-        .data.system = malloc(sizeof(vm_system_t)),
-#else
-        .data.user = malloc(sizeof(vm_user_t)),
-#endif
         .cycle_per_step = CYCLE_PER_STEP,
         .allow_misalign = opt_misaligned,
     };
 #if RV32_HAS(SYSTEM) && !defined(USE_ELF)
-    assert(attr.data.system);
-    attr.data.system->kernel = "build/Image";       /* FIXME: hardcoded */
-    attr.data.system->initrd = "build/rootfs.cpio"; /* FIXME: hardcoded */
-    attr.data.system->dtb = "build/minimal.dtb";    /* FIXME: hardcoded */
+    attr.data.system.kernel = opt_kernel_img;
+    attr.data.system.initrd = opt_rootfs_img;
+    attr.data.system.dtb = opt_dtb;
 #else
-    assert(attr.data.user);
-    attr.data.user->elf_program = opt_prog_name;
+    attr.data.user.elf_program = opt_prog_name;
 #endif
 
     /* create the RISC-V runtime */
@@ -263,7 +290,6 @@ int main(int argc, char **args)
     printf("inferior exit code %d\n", attr.exit_code);
 
 end:
-    free(attr.data.user);
     free(prof_out_file);
     return attr.exit_code;
 }

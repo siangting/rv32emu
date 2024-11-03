@@ -4,9 +4,12 @@
  */
 
 #include <assert.h>
+#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
 
 #if !defined(_WIN32) && !defined(_WIN64)
 #include <unistd.h>
@@ -209,9 +212,7 @@ static void *t2c_runloop(void *arg)
 }
 #endif
 
-#include <fcntl.h>
-#include <sys/mman.h>
-#include <sys/stat.h>
+#if RV32_HAS(SYSTEM) && !defined(USE_ELF)
 static void map_file(char **ram_loc, const char *name)
 {
     int fd = open(name, O_RDONLY);
@@ -246,6 +247,7 @@ static void map_file(char **ram_loc, const char *name)
 
     close(fd);
 }
+#endif
 
 #include <termios.h>
 
@@ -290,102 +292,98 @@ riscv_t *rv_create(riscv_user_t rv_attr)
     /* FIXME */
     // capture_keyboard_input();
 
-    if (attr->data.user) {
-        elf_t *elf = elf_new();
-        assert(elf && elf_open(elf, (attr->data.user)->elf_program));
+#if !RV32_HAS(SYSTEM) || (RV32_HAS(SYSTEM) && defined(USE_ELF))
+    elf_t *elf = elf_new();
+    assert(elf && elf_open(elf, attr->data.user.elf_program));
 
-        const struct Elf32_Sym *end;
-        if ((end = elf_get_symbol(elf, "_end")))
-            attr->break_addr = end->st_value;
+    const struct Elf32_Sym *end;
+    if ((end = elf_get_symbol(elf, "_end")))
+        attr->break_addr = end->st_value;
 
-        assert(elf_load(elf, attr->mem));
+    assert(elf_load(elf, attr->mem));
 
-        /* set the entry pc */
-        const struct Elf32_Ehdr *hdr = get_elf_header(elf);
-        assert(rv_set_pc(rv, hdr->e_entry));
+    /* set the entry pc */
+    const struct Elf32_Ehdr *hdr = get_elf_header(elf);
+    assert(rv_set_pc(rv, hdr->e_entry));
 
-        elf_delete(elf);
+    elf_delete(elf);
 
+/* combine with USE_ELF for system test suite */
 #if RV32_HAS(SYSTEM)
-        /* this variable has external linkage to mmu_io defined in system.c */
-        extern riscv_io_t mmu_io;
-        /* install the MMU I/O handlers */
-        memcpy(&rv->io, &mmu_io, sizeof(riscv_io_t));
+    /* this variable has external linkage to mmu_io defined in system.c */
+    extern riscv_io_t mmu_io;
+    /* install the MMU I/O handlers */
+    memcpy(&rv->io, &mmu_io, sizeof(riscv_io_t));
 #else
-        /* install the I/O handlers */
-        const riscv_io_t io = {
-            /* memory read interface */
-            .mem_ifetch = MEMIO(ifetch),
-            .mem_read_w = MEMIO(read_w),
-            .mem_read_s = MEMIO(read_s),
-            .mem_read_b = MEMIO(read_b),
+    /* install the I/O handlers */
+    const riscv_io_t io = {
+        /* memory read interface */
+        .mem_ifetch = MEMIO(ifetch),
+        .mem_read_w = MEMIO(read_w),
+        .mem_read_s = MEMIO(read_s),
+        .mem_read_b = MEMIO(read_b),
 
-            /* memory write interface */
-            .mem_write_w = MEMIO(write_w),
-            .mem_write_s = MEMIO(write_s),
-            .mem_write_b = MEMIO(write_b),
+        /* memory write interface */
+        .mem_write_w = MEMIO(write_w),
+        .mem_write_s = MEMIO(write_s),
+        .mem_write_b = MEMIO(write_b),
 
-            /* system services or essential routines */
-            .on_ecall = ecall_handler,
-            .on_ebreak = ebreak_handler,
-            .on_memcpy = memcpy_handler,
-            .on_memset = memset_handler,
-            .on_trap = trap_handler,
-        };
-        memcpy(&rv->io, &io, sizeof(riscv_io_t));
+        /* system services or essential routines */
+        .on_ecall = ecall_handler,
+        .on_ebreak = ebreak_handler,
+        .on_memcpy = memcpy_handler,
+        .on_memset = memset_handler,
+        .on_trap = trap_handler,
+    };
+    memcpy(&rv->io, &io, sizeof(riscv_io_t));
 #endif /* RV32_HAS(SYSTEM) */
+
+#else
+    /* *-----------------------------------------*
+     * |              Memory layout              |
+     * *----------------*----------------*-------*
+     * |  kernel image  |  initrd image  |  dtb  |
+     * *----------------*----------------*-------*
+     */
+
+    char *ram_loc = (char *) attr->mem->mem_base;
+    map_file(&ram_loc, attr->data.system.kernel);
+
+    uint32_t dtb_addr = attr->mem->mem_size - (1 * 1024 * 1024);
+    ram_loc = ((char *) attr->mem->mem_base) + dtb_addr;
+    map_file(&ram_loc, attr->data.system.dtb);
+    /*
+     * Load optional initrd image at last 8 MiB before the dtb region to
+     * prevent kernel from overwritting it
+     */
+    if (attr->data.system.initrd) {
+        uint32_t initrd_addr = dtb_addr - (8 * 1024 * 1024);
+        ram_loc = ((char *) attr->mem->mem_base) + initrd_addr;
+        map_file(&ram_loc, attr->data.system.initrd);
     }
-#if RV32_HAS(SYSTEM)
-    else {
-        /* *-----------------------------------------*
-         * |              Memory layout              |
-         * *----------------*----------------*-------*
-         * |  kernel image  |  initrd image  |  dtb  |
-         * *----------------*----------------*-------*
-         */
 
-        // elf_t *elf = elf_new();
-        char *ram_loc = (char *) attr->mem->mem_base;
-        map_file(&ram_loc, (attr->data.system)->kernel);
+    /* this variable has external linkage to mmu_io defined in system.c */
+    extern riscv_io_t mmu_io;
+    memcpy(&rv->io, &mmu_io, sizeof(riscv_io_t));
 
-        uint32_t dtb_addr = attr->mem->mem_size - (1 * 1024 * 1024);
-        ram_loc = ((char *) attr->mem->mem_base) + dtb_addr;
-        map_file(&ram_loc, (attr->data.system)->dtb);
-        /* Load optional initrd image at last 8 MiB before the dtb region to
-         * prevent kernel from overwritting it
-         */
-        if ((attr->data.system)->initrd) {
-            uint32_t initrd_addr = dtb_addr - (8 * 1024 * 1024);
-            ram_loc = ((char *) attr->mem->mem_base) + initrd_addr;
-            map_file(&ram_loc, (attr->data.system)->initrd);
-        }
+    /* setup RISC-V hart */
+    rv_set_reg(rv, rv_reg_a0, 0);
+    rv_set_reg(rv, rv_reg_a1, dtb_addr);
 
-        /* this variable has external linkage to mmu_io defined in system.c */
-        extern riscv_io_t mmu_io;
-        memcpy(&rv->io, &mmu_io, sizeof(riscv_io_t));
+    /* setup timer */
+    attr->timer = 0xFFFFFFFFFFFFFFF;
 
-        /* setup RISC-V hart */
-        rv_set_reg(rv, rv_reg_a0, 0);
-        rv_set_reg(rv, rv_reg_a1, dtb_addr);
+    /* setup PLIC */
+    attr->plic = plic_new();
+    assert(attr->plic);
+    attr->plic->rv = rv;
 
-        /* setup timer */
-        attr->timer = 0xFFFFFFFFFFFFFFF;
-
-        /* setup PLIC */
-        attr->plic = plic_new();
-        assert(attr->plic);
-        attr->plic->rv = rv;
-
-        /* setup UART */
-        attr->uart = u8250_new();
-        assert(attr->uart);
-        attr->uart->in_fd = 0;
-        attr->uart->out_fd = 1;
-
-        /* reset privilege mode */
-        rv->priv_mode = RV_PRIV_S_MODE;
-    }
-#endif /* SYSTEM */
+    /* setup UART */
+    attr->uart = u8250_new();
+    assert(attr->uart);
+    attr->uart->in_fd = 0;
+    attr->uart->out_fd = 1;
+#endif /* !RV32_HAS(SYSTEM) || (RV32_HAS(SYSTEM) && defined(USE_ELF)) */
 
     /* default standard stream.
      * rv_remap_stdstream can be called to overwrite them
@@ -429,15 +427,19 @@ riscv_t *rv_create(riscv_user_t rv_attr)
     return rv;
 }
 
+#if !RV32_HAS(SYSTEM) || (RV32_HAS(SYSTEM) && defined(USE_ELF))
+/*
+ * TODO: enable to trace Linux kernel symbol
+ */
 static void rv_run_and_trace(riscv_t *rv)
 {
     assert(rv);
 
     vm_attr_t *attr = PRIV(rv);
-    assert(attr && attr->data.user && attr->data.user->elf_program);
+    assert(attr && attr->data.user.elf_program);
     attr->cycle_per_step = 100000000;
 
-    const char *prog_name = attr->data.user->elf_program;
+    const char *prog_name = attr->data.user.elf_program;
     elf_t *elf = elf_new();
     assert(elf && elf_open(elf, prog_name));
 
@@ -452,6 +454,7 @@ static void rv_run_and_trace(riscv_t *rv)
 
     elf_delete(elf);
 }
+#endif
 
 #if RV32_HAS(GDBSTUB)
 /* Run the RISC-V emulator as gdbstub */
@@ -467,20 +470,14 @@ void rv_run(riscv_t *rv)
     vm_attr_t *attr = PRIV(rv);
     assert(attr &&
 #if RV32_HAS(SYSTEM) && !defined(USE_ELF)
-           attr->data.system && attr->data.system->kernel &&
-           attr->data.system->initrd && attr->data.system->dtb
+           attr->data.system.kernel && attr->data.system.initrd &&
+           attr->data.system.dtb
 #else
-           attr->data.user && attr->data.user->elf_program
+           attr->data.user.elf_program
 #endif
     );
 
-    if (attr->run_flag & RV_RUN_TRACE)
-        rv_run_and_trace(rv);
-#if RV32_HAS(GDBSTUB)
-    else if (attr->run_flag & RV_RUN_GDBSTUB)
-        rv_debug(rv);
-#endif
-    else {
+    if (!(attr->run_flag & (RV_RUN_TRACE | RV_RUN_GDBSTUB))) {
 #ifdef __EMSCRIPTEN__
         emscripten_set_main_loop_arg(rv_step, (void *) rv, 0, 1);
 #else
@@ -489,6 +486,14 @@ void rv_run(riscv_t *rv)
             rv_step(rv);            /* step instructions */
 #endif
     }
+#if !RV32_HAS(SYSTEM) || (RV32_HAS(SYSTEM) && defined(USE_ELF))
+    else if (attr->run_flag & RV_RUN_TRACE)
+        rv_run_and_trace(rv);
+#endif
+#if RV32_HAS(GDBSTUB)
+    else if (attr->run_flag & RV_RUN_GDBSTUB)
+        rv_debug(rv);
+#endif
 
     if (attr->run_flag & RV_RUN_PROFILE) {
         assert(attr->profile_output_file);

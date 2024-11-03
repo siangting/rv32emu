@@ -936,7 +936,7 @@ void rv_step(void *arg)
 
     /* loop until hitting the cycle target */
     while (rv->csr_cycle < cycles_target && !rv->halt) {
-#if RV32_HAS(SYSTEM)
+#if RV32_HAS(SYSTEM) && !defined(USE_ELF)
         /* check for any interrupt after every block emulation */
 
         /* now time */
@@ -976,7 +976,7 @@ void rv_step(void *arg)
                 break;
             }
         }
-#endif /* RV32_HAS(SYSTEM) */
+#endif /* RV32_HAS(SYSTEM) && !defined(USE_ELF) */
 
         if (prev && prev->pc_start != last_pc) {
             /* update previous block */
