@@ -299,27 +299,89 @@ void syscall_draw_frame(riscv_t *rv)
 {
     vm_attr_t *attr = PRIV(rv);
 
-    /* draw_frame(base, width, height) */
-    const uint32_t screen = rv_get_reg(rv, rv_reg_a0);
-    const int width = rv_get_reg(rv, rv_reg_a1);
-    const int height = rv_get_reg(rv, rv_reg_a2);
-
-    if (!check_sdl(rv, width, height))
+    if (SDL_Init(SDL_INIT_VIDEO) != 0) {
+        fprintf(stderr, "SDL could not initialize! SDL_Error: %s\n", SDL_GetError());
         return;
+    }
 
-    /* read directly into video memory */
-    int pitch = 0;
-    void *pixels_ptr;
-    if (SDL_LockTexture(texture, NULL, &pixels_ptr, &pitch))
-        exit(-1);
-    memory_read(attr->mem, pixels_ptr, screen, width * height * 4);
-    SDL_UnlockTexture(texture);
+    // Create an SDL window
+    SDL_Window* window = SDL_CreateWindow(
+        "White Screen to Buffer",
+        SDL_WINDOWPOS_CENTERED,
+        SDL_WINDOWPOS_CENTERED,
+        800, // Width of the window
+        600, // Height of the window
+        SDL_WINDOW_SHOWN
+    );
 
-    int actual_width, actual_height;
-    SDL_GetWindowSize(window, &actual_width, &actual_height);
-    SDL_RenderCopy(renderer, texture, NULL,
-                   &(SDL_Rect){0, 0, actual_width, actual_height});
+    if (!window) {
+        fprintf(stderr, "Window could not be created! SDL_Error: %s\n", SDL_GetError());
+        SDL_Quit();
+        return;
+    }
+
+    // Create a renderer to control the window
+    SDL_Renderer* renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
+    if (!renderer) {
+        fprintf(stderr, "Renderer could not be created! SDL_Error: %s\n", SDL_GetError());
+        SDL_DestroyWindow(window);
+        SDL_Quit();
+        return;
+    }
+
+    // Set the renderer color to white (R=255, G=255, B=255, A=255)
+    SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+
+    // Clear the screen with the white color
+    SDL_RenderClear(renderer);
+
+    // Present the renderer (update the screen)
     SDL_RenderPresent(renderer);
+
+    // Get the width and height of the window
+    int width, height;
+    SDL_GetRendererOutputSize(renderer, &width, &height);
+
+    // Define the format (e.g., SDL_PIXELFORMAT_RGBA8888)
+    Uint32 pixel_format = SDL_PIXELFORMAT_RGBA8888;
+    int bytes_per_pixel = SDL_BYTESPERPIXEL(pixel_format);
+
+    // Create a byte buffer to hold pixel data for the entire screen
+    Uint8* buffer = (Uint8*)malloc(width * height * bytes_per_pixel);
+    if (!buffer) {
+        fprintf(stderr, "Failed to allocate memory for pixel buffer.\n");
+        SDL_DestroyRenderer(renderer);
+        SDL_DestroyWindow(window);
+        SDL_Quit();
+        return;
+    }
+
+    // Read pixels from the renderer into the buffer
+    if (SDL_RenderReadPixels(renderer, NULL, pixel_format, buffer, width * bytes_per_pixel) != 0) {
+        fprintf(stderr, "SDL_RenderReadPixels failed! SDL_Error: %s\n", SDL_GetError());
+    } else {
+        printf("White screen data has been stored in the byte buffer.\n");
+    }
+
+    // Event loop to keep the window open until the user closes it
+    SDL_Event e;
+    int quit = 0;
+    while (!quit) {
+        // Process events
+        while (SDL_PollEvent(&e) != 0) {
+            if (e.type == SDL_QUIT) {
+                quit = 1;  // Exit loop if the window is closed
+            }
+        }
+        // Small delay to reduce CPU usage
+        SDL_Delay(10);
+    }
+
+    // Cleanup
+    free(buffer);
+    SDL_DestroyRenderer(renderer);
+    SDL_DestroyWindow(window);
+    SDL_Quit();
 }
 
 void syscall_setup_queue(riscv_t *rv)

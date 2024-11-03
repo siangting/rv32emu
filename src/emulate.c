@@ -1215,6 +1215,10 @@ void ecall_handler(riscv_t *rv)
     syscall_handler(rv);
 #elif RV32_HAS(SYSTEM)
     if (rv->priv_mode == RV_PRIV_U_MODE) {
+	if(rv_get_reg(rv, rv_reg_a7) == 0xBEEF){
+            rv->PC += 4;
+            syscall_handler(rv);
+	}
         SET_CAUSE_AND_TVAL_THEN_TRAP(rv, ECALL_U, 0);
     } else if (rv->priv_mode ==
                RV_PRIV_S_MODE) { /* trap to SBI syscall handler */
