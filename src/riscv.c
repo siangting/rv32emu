@@ -214,7 +214,7 @@ static void *t2c_runloop(void *arg)
 }
 #endif
 
-#if RV32_HAS(SYSTEM) && !defined(USE_ELF)
+#if RV32_HAS(SYSTEM) && !RV32_HAS(ELF_LOADER)
 static void map_file(char **ram_loc, const char *name)
 {
     int fd = open(name, O_RDONLY);
@@ -294,7 +294,7 @@ riscv_t *rv_create(riscv_user_t rv_attr)
     /* FIXME */
     // capture_keyboard_input();
 
-#if !RV32_HAS(SYSTEM) || (RV32_HAS(SYSTEM) && defined(USE_ELF))
+#if !RV32_HAS(SYSTEM) || (RV32_HAS(SYSTEM) && RV32_HAS(ELF_LOADER))
     elf_t *elf = elf_new();
     assert(elf && elf_open(elf, attr->data.user.elf_program));
 
@@ -385,7 +385,7 @@ riscv_t *rv_create(riscv_user_t rv_attr)
     assert(attr->uart);
     attr->uart->in_fd = 0;
     attr->uart->out_fd = 1;
-#endif /* !RV32_HAS(SYSTEM) || (RV32_HAS(SYSTEM) && defined(USE_ELF)) */
+#endif /* !RV32_HAS(SYSTEM) || (RV32_HAS(SYSTEM) && RV32_HAS(ELF_LOADER)) */
 
     /* default standard stream.
      * rv_remap_stdstream can be called to overwrite them
@@ -428,7 +428,7 @@ riscv_t *rv_create(riscv_user_t rv_attr)
     return rv;
 }
 
-#if !RV32_HAS(SYSTEM) || (RV32_HAS(SYSTEM) && defined(USE_ELF))
+#if !RV32_HAS(SYSTEM) || (RV32_HAS(SYSTEM) && RV32_HAS(ELF_LOADER))
 /*
  * TODO: enable to trace Linux kernel symbol
  */
@@ -470,7 +470,7 @@ void rv_run(riscv_t *rv)
 
     vm_attr_t *attr = PRIV(rv);
     assert(attr &&
-#if RV32_HAS(SYSTEM) && !defined(USE_ELF)
+#if RV32_HAS(SYSTEM) && !RV32_HAS(ELF_LOADER)
            attr->data.system.kernel && attr->data.system.initrd &&
            attr->data.system.dtb
 #else
@@ -487,7 +487,7 @@ void rv_run(riscv_t *rv)
             rv_step(rv);            /* step instructions */
 #endif
     }
-#if !RV32_HAS(SYSTEM) || (RV32_HAS(SYSTEM) && defined(USE_ELF))
+#if !RV32_HAS(SYSTEM) || (RV32_HAS(SYSTEM) && RV32_HAS(ELF_LOADER))
     else if (attr->run_flag & RV_RUN_TRACE)
         rv_run_and_trace(rv);
 #endif

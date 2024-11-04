@@ -15,19 +15,15 @@ CFLAGS += -include src/common.h
 # However, the Linux kernel emulation includes the Image, DT, and
 # root filesystem (rootfs). Therefore, the test suite needs this
 # flag to load the ELF and differentiate it from the kernel emulation.
-ENABLE_USE_ELF ?= 0
-ifeq ($(call has, USE_ELF), 1)
-DEFINE_USE_ELF := -DUSE_ELF
-endif
+ENABLE_ELF_LOADER ?= 0
+$(call set-feature, ELF_LOADER)
 
 # The MMU test suite relies on rv32emu's syscall function instead of
 # its syscall table, unlike the Linux kernel. Therefore, use the
 # ON_TEST macro to distinguish between the Linux kernel and MMU test
 # suite as the emulation target.
 ENABLE_ON_TEST ?= 0
-ifeq ($(call has, ON_TEST), 1)
-DEFINE_ON_TEST := -DON_TEST
-endif
+$(call set-feature, ON_TEST)
 
 ENABLE_SYSTEM ?= 0
 $(call set-feature, SYSTEM)
@@ -264,7 +260,7 @@ endif
 
 $(OUT)/%.o: src/%.c $(deps_emcc)
 	$(VECHO) "  CC\t$@\n"
-	$(Q)$(CC) $(DEFINE_USE_ELF) $(DEFINE_ON_TEST) -o $@ $(CFLAGS) $(CFLAGS_emcc) -c -MMD -MF $@.d $<
+	$(Q)$(CC) -o $@ $(CFLAGS) $(CFLAGS_emcc) -c -MMD -MF $@.d $<
 
 $(BIN): $(OBJS) $(DEV_OBJS)
 	$(VECHO) "  LD\t$@\n"

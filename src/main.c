@@ -49,7 +49,7 @@ static bool opt_misaligned = false;
 static bool opt_prof_data = false;
 static char *prof_out_file;
 
-#if RV32_HAS(SYSTEM) && !defined(USE_ELF)
+#if RV32_HAS(SYSTEM) && !RV32_HAS(ELF_LOADER)
 /* Linux kernel data */
 static char *opt_kernel_img;
 static char *opt_rootfs_img;
@@ -62,13 +62,13 @@ static void print_usage(const char *filename)
             "RV32I[MAFC] Emulator which loads an ELF file to execute.\n"
             "Usage: %s [options] [filename] [arguments]\n"
             "Options:\n"
-#if !RV32_HAS(SYSTEM) || (RV32_HAS(SYSTEM) && defined(USE_ELF))
+#if !RV32_HAS(SYSTEM) || (RV32_HAS(SYSTEM) && RV32_HAS(ELF_LOADER))
             "  -t : print executable trace\n"
 #endif
 #if RV32_HAS(GDBSTUB)
             "  -g : allow remote GDB connections (as gdbstub)\n"
 #endif
-#if RV32_HAS(SYSTEM) && !defined(USE_ELF)
+#if RV32_HAS(SYSTEM) && !RV32_HAS(ELF_LOADER)
             "  -k <image> : use <image> as kernel image\n"
             "  -i <image> : use <image> as rootfs\n"
             "  -b <dtb> : use <dtb> as device tree blob\n"
@@ -93,7 +93,7 @@ static bool parse_args(int argc, char **args)
         emu_argc++;
 
         switch (opt) {
-#if !RV32_HAS(SYSTEM) || (RV32_HAS(SYSTEM) && defined(USE_ELF))
+#if !RV32_HAS(SYSTEM) || (RV32_HAS(SYSTEM) && RV32_HAS(ELF_LOADER))
         case 't':
             opt_trace = true;
             break;
@@ -103,7 +103,7 @@ static bool parse_args(int argc, char **args)
             opt_gdbstub = true;
             break;
 #endif
-#if RV32_HAS(SYSTEM) && !defined(USE_ELF)
+#if RV32_HAS(SYSTEM) && !RV32_HAS(ELF_LOADER)
         case 'k':
             opt_kernel_img = optarg;
             emu_argc++;
@@ -224,7 +224,7 @@ void indirect_rv_halt()
 }
 #endif
 
-#if RV32_HAS(SYSTEM) && !defined(USE_ELF)
+#if RV32_HAS(SYSTEM) && !RV32_HAS(ELF_LOADER)
 /* forcely undefine MEM_SIZE to prevent any define in Makefile */
 #undef MEM_SIZE
 #define MEM_SIZE 512 * 1024 * 1024
@@ -238,7 +238,7 @@ int main(int argc, char **args)
     }
 
     int run_flag = 0;
-#if !RV32_HAS(SYSTEM) || (RV32_HAS(SYSTEM) && defined(USE_ELF))
+#if !RV32_HAS(SYSTEM) || (RV32_HAS(SYSTEM) && RV32_HAS(ELF_LOADER))
     run_flag |= opt_trace;
 #endif
 #if RV32_HAS(GDBSTUB)
@@ -258,7 +258,7 @@ int main(int argc, char **args)
         .cycle_per_step = CYCLE_PER_STEP,
         .allow_misalign = opt_misaligned,
     };
-#if RV32_HAS(SYSTEM) && !defined(USE_ELF)
+#if RV32_HAS(SYSTEM) && !RV32_HAS(ELF_LOADER)
     attr.data.system.kernel = opt_kernel_img;
     attr.data.system.initrd = opt_rootfs_img;
     attr.data.system.dtb = opt_dtb;
