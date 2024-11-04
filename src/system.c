@@ -15,7 +15,7 @@ void emu_update_uart_interrupts(riscv_t *rv)
 {
     vm_attr_t *attr = PRIV(rv);
     u8250_update_interrupts(attr->uart);
-    if (attr->uart->pending_ints) {
+    if (attr->uart->pending_intrs) {
         attr->plic->active |= IRQ_UART_BIT;
     } else
         attr->plic->active &= ~IRQ_UART_BIT;

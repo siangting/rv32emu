@@ -8,14 +8,14 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#define IRQ_UART 1
-#define IRQ_UART_BIT (1 << IRQ_UART)
+#define IRQ_UART_SHIFT 1
+#define IRQ_UART_BIT (1 << IRQ_UART_SHIFT)
 
 typedef struct {
-    uint8_t dll, dlh;                  /* divisor (ignored) */
-    uint8_t lcr;                       /* UART config */
-    uint8_t ier;                       /* interrupt config */
-    uint8_t current_int, pending_ints; /* interrupt status */
+    uint8_t dll, dlh;                    /* divisor (ignored) */
+    uint8_t lcr;                         /* UART config */
+    uint8_t ier;                         /* interrupt config */
+    uint8_t current_intr, pending_intrs; /* interrupt status */
     uint8_t mcr;       /* other output signals, loopback mode (ignored) */
     int in_fd, out_fd; /* I/O handling */
     bool in_ready;
