@@ -15,7 +15,7 @@
 #if RV32_HAS(SYSTEM)
 #include "devices/plic.h"
 #include "devices/uart.h"
-#endif /* RV32_HAS(EXT_SYSTEM) */
+#endif /* RV32_HAS(SYSTEM) */
 
 #if RV32_HAS(EXT_F)
 #define float16_t softfloat_float16_t
