@@ -98,7 +98,7 @@ The image containing all the necessary tools for development and testing can be 
 * `ENABLE_FULL4G` : Full access to 4 GiB address space
 * `ENABLE_SDL` : Experimental Display and Event System Calls
 * `ENABLE_JIT` : Experimental JIT compiler
-* `ENABLE_SYSTEM` : Experimental system emulation, allowing booting Linux kernel
+* `ENABLE_SYSTEM` : Experimental system emulation, allowing booting Linux kernel. To enable this feature, additional features must also be enabled, such as `ENABLE_Zicsr`, `ENABLE_Zifencei`, `ENABLE_EXT_M`, and `ENABLE_EXT_A`. However, by default, when `ENABLE_SYSTEM` is enabled, `ENABLE_Zicsr`, `ENABLE_Zifencei`, `ENABLE_EXT_M`, and `ENABLE_EXT_A` are automatically enabled.
 
 e.g., run `make ENABLE_EXT_F=0` for the build without floating-point support.
 
