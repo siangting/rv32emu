@@ -7,6 +7,13 @@
 
 #include <stdint.h>
 
+enum PLIC_REG {
+    INTR_PENDING = 0x400,
+    INTR_ENABLE = 0x800,
+    INTR_PRIORITY = 0x80000,
+    INTR_CLAIM_OR_COMPLETE = 0x80001,
+};
+
 /* PLIC */
 typedef struct {
     uint32_t masked;

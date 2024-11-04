@@ -33,17 +33,17 @@ uint32_t plic_read(plic_t *plic, const uint32_t addr)
     uint32_t plic_read_val = 0;
 
     switch (addr) {
-    case 0x400:
+    case INTR_PENDING:
         plic_read_val = plic->ip;
         break;
-    case 0x800:
+    case INTR_ENABLE:
         plic_read_val = plic->ie;
         break;
-    case 0x80000:
+    case INTR_PRIORITY:
         /* no priority support: target priority threshold hardwired to 0 */
         plic_read_val = 0;
         break;
-    case 0x80001:
+    case INTR_CLAIM_OR_COMPLETE:
         /* claim */
         {
             uint32_t intr_candidate = plic->ip & plic->ie;
@@ -67,13 +67,13 @@ void plic_write(plic_t *plic, const uint32_t addr, uint32_t value)
         return;
 
     switch (addr) {
-    case 0x800:
+    case INTR_ENABLE:
         plic->ie = (value & ~1);
         break;
-    case 0x80000:
+    case INTR_PRIORITY:
         /* no priority support: target priority threshold hardwired to 0 */
         break;
-    case 0x80001:
+    case INTR_CLAIM_OR_COMPLETE:
         /* completion */
         if (plic->ie & (1U << value))
             plic->masked &= ~(1U << value);

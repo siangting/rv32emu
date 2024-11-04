@@ -261,6 +261,7 @@ static void reset_keyboard_input()
     term.c_lflag |= ICANON | ECHO;
     tcsetattr(0, TCSANOW, &term);
 }
+
 /* Asynchronous communication to capture all keyboard input for the VM. */
 static void capture_keyboard_input()
 {
@@ -290,9 +291,6 @@ riscv_t *rv_create(riscv_user_t rv_attr)
 
     /* reset */
     rv_reset(rv, 0U);
-
-    /* FIXME */
-    // capture_keyboard_input();
 
 #if !RV32_HAS(SYSTEM) || (RV32_HAS(SYSTEM) && RV32_HAS(ELF_LOADER))
     elf_t *elf = elf_new();
@@ -385,6 +383,8 @@ riscv_t *rv_create(riscv_user_t rv_attr)
     assert(attr->uart);
     attr->uart->in_fd = 0;
     attr->uart->out_fd = 1;
+
+    capture_keyboard_input();
 #endif /* !RV32_HAS(SYSTEM) || (RV32_HAS(SYSTEM) && RV32_HAS(ELF_LOADER)) */
 
     /* default standard stream.

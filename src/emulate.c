@@ -88,7 +88,7 @@ static inline void update_time(riscv_t *rv)
 }
 
 #if RV32_HAS(SYSTEM)
-static inline void get_time_now(struct timeval *tv)
+static void get_time_now(struct timeval *tv)
 {
     rv_gettimeofday(tv);
 }
@@ -966,7 +966,7 @@ void rv_step(void *arg)
 
     /* loop until hitting the cycle target */
     while (rv->csr_cycle < cycles_target && !rv->halt) {
-#if RV32_HAS(SYSTEM) && !defined(USE_ELF)
+#if RV32_HAS(SYSTEM) && !RV32_HAS(ELF_LOADER)
         /* check for any interrupt after every block emulation */
 
         /* now time */
@@ -1006,7 +1006,7 @@ void rv_step(void *arg)
                 break;
             }
         }
-#endif /* RV32_HAS(SYSTEM) && !defined(USE_ELF) */
+#endif /* RV32_HAS(SYSTEM) && !RV32_HAS(ELF_LOADER) */
 
         if (prev && prev->pc_start != last_pc) {
             /* update previous block */
@@ -1222,11 +1222,7 @@ void ecall_handler(riscv_t *rv)
 {
     assert(rv);
 
-/*
- * FIXME: MMU test suite rely on rv32emu syscall instead of its own syscall
- * table
- */
-#if defined(ON_TEST)
+#if RV32_HAS(ON_TEST)
     rv->PC += 4;
     syscall_handler(rv);
 #elif RV32_HAS(SYSTEM)

@@ -20,8 +20,8 @@ $(call set-feature, ELF_LOADER)
 
 # The MMU test suite relies on rv32emu's syscall function instead of
 # its syscall table, unlike the Linux kernel. Therefore, use the
-# ON_TEST macro to distinguish between the Linux kernel and MMU test
-# suite as the emulation target.
+# ON_TEST feature macro to distinguish between the Linux kernel and MMU
+# test suite as the emulation target.
 ENABLE_ON_TEST ?= 0
 $(call set-feature, ON_TEST)
 
