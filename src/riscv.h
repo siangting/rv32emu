@@ -536,11 +536,11 @@ typedef struct {
 #endif /* RV32_HAS(SYSTEM) */
 
 typedef struct {
-#if !RV32_HAS(SYSTEM) || (RV32_HAS(SYSTEM) && defined(USE_ELF))
+#if !RV32_HAS(SYSTEM) || (RV32_HAS(SYSTEM) && RV32_HAS(ELF_LOADER))
     vm_user_t user;
 #else
     vm_system_t system;
-#endif /* !RV32_HAS(SYSTEM) || (RV32_HAS(SYSTEM) && defined(USE_ELF)) */
+#endif /* !RV32_HAS(SYSTEM) || (RV32_HAS(SYSTEM) && RV32_HAS(ELF_LOADER)) */
 
 } vm_data_t;
 
