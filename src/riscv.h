@@ -218,6 +218,11 @@ enum SV32_PTE_PERM {
 #define SBI_EID_RST 0x53525354
 #define SBI_RST_SYSTEM_RESET 0
 
+/* Allows the supervisor to request flushing TLB on remote core */
+#define SBI_EID_RFENCE 0x52464E43
+#define SBI_REMOTE_FENCEI 0
+#define SBI_REMOTE_SFENCEVMA 1
+
 #define RV_MVENDORID 0x12345678
 #define RV_MARCHID ((1ULL << 31) | 1)
 #define RV_MIMPID 1

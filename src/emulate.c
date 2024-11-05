@@ -70,9 +70,7 @@ static void __trap_handler(riscv_t *rv);
     {                                                                 \
         rv->compressed = compress;                                    \
         rv->csr_cycle = cycle;                                        \
-        rv->PC = PC;                                                  \
-        SET_CAUSE_AND_TVAL_THEN_TRAP(rv, type##_MISALIGNED,           \
-                                     IIF(IO)(addr, mask_or_pc));      \
+        rv->PC = PC + 4;                                              \
         return false;                                                 \
     }
 
@@ -1110,6 +1108,7 @@ static void __trap_handler(riscv_t *rv)
         ir->impl = dispatch_table[ir->opcode];
         rv->compressed = is_compressed(insn);
         ir->impl(rv, ir, rv->csr_cycle, rv->PC);
+
     }
 }
 #endif /* RV32_HAS(SYSTEM) */
