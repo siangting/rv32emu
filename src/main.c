@@ -16,7 +16,9 @@
 #include "utils.h"
 
 /* enable program trace mode */
+#if !RV32_HAS(SYSTEM) || (RV32_HAS(SYSTEM) && RV32_HAS(ELF_LOADER))
 static bool opt_trace = false;
+#endif
 
 #if RV32_HAS(GDBSTUB)
 /* enable program gdbstub mode */

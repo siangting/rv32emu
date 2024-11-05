@@ -11,6 +11,10 @@
 #include <sys/mman.h>
 #include <sys/stat.h>
 
+#if RV32_HAS(SYSTEM) && !RV32_HAS(ELF_LOADER)
+#include <termios.h>
+#endif
+
 #if !defined(_WIN32) && !defined(_WIN64)
 #include <unistd.h>
 #define FILENO(x) fileno(x)
@@ -177,6 +181,7 @@ void rv_remap_stdstream(riscv_t *rv, fd_stream_pair_t *fsp, uint32_t fsp_size)
         (memory_##op(addr, (uint8_t *) &data), return memory_##op(addr)); \
     }
 
+#if !RV32_HAS(SYSTEM)
 #define R 0
 #define W 1
 
@@ -191,6 +196,7 @@ IO_HANDLER_IMPL(byte, write_b, W)
 
 #undef R
 #undef W
+#endif
 
 #if RV32_HAS(T2C)
 static pthread_t t2c_thread;
@@ -227,31 +233,38 @@ static void map_file(char **ram_loc, const char *name)
     struct stat st;
     fstat(fd, &st);
 
+#if HAVE_MMAP
     /* remap to a memory region */
     *ram_loc = mmap(*ram_loc, st.st_size, PROT_READ | PROT_WRITE,
                     MAP_FIXED | MAP_PRIVATE, fd, 0);
     if (*ram_loc == MAP_FAILED) {
         perror("mmap");
-        printf("name: %s\n", name);
         close(fd);
         exit(2);
     }
+#else
+    /* calloc and load data to a memory region */
+    *ram_loc = calloc(st.st_size, sizeof(uint8_t));
+    if (!*ram_loc) {
+        perror("calloc");
+        close(fd);
+        exit(2);
+    }
+    if (read(fd, *ram_loc, st.st_size) != st.st_size) {
+        perror("read");
+        close(fd);
+        exit(2);
+    }
+#endif
 
-    // FIXME: used for unmap
-    // mapper[map_index].addr = *ram_loc;
-    // mapper[map_index].size = st.st_size;
-    // map_index++;
-
-    /* The kernel selects a nearby page boundary and attempts to create
+    /*
+     * The kernel selects a nearby page boundary and attempts to create
      * the mapping.
      */
     *ram_loc += st.st_size;
 
     close(fd);
 }
-#endif
-
-#include <termios.h>
 
 static void reset_keyboard_input()
 {
@@ -273,6 +286,7 @@ static void capture_keyboard_input()
     term.c_lflag &= ~(ICANON | ECHO | ISIG); /* Disable echo as well */
     tcsetattr(0, TCSANOW, &term);
 }
+#endif
 
 riscv_t *rv_create(riscv_user_t rv_attr)
 {
