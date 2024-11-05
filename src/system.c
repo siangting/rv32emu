@@ -22,39 +22,48 @@ void emu_update_uart_interrupts(riscv_t *rv)
     plic_update_interrupts(attr->plic);
 }
 
-#define MMIO_PLIC 1
-#define MMIO_UART 0
 #define MMIO_R 1
 #define MMIO_W 0
 
-uint8_t ret_char;
+enum SUPPORTED_MMIO {
+    MMIO_PLIC,
+    MMIO_UART,
+};
+
 /* clang-format off */
-#define MMIO_OP(io, rw)                                           \
-    IIF(io)( /* PLIC */                                           \
-        IIF(rw)( /* read */                                       \
-            read_val = plic_read(PRIV(rv)->plic, (addr & 0x3FFFFFF) >> 2);           \
-	    plic_update_interrupts(PRIV(rv)->plic); return read_val;          \
-	    ,     /* write */                                     \
-            plic_write(PRIV(rv)->plic, (addr & 0x3FFFFFF) >> 2, val);   \
-            plic_update_interrupts(PRIV(rv)->plic); return;                   \
-        )                                                         \
-        ,    /* UART */                                           \
-        IIF(rw)( /* read */                                       \
-            /*return 0x60 | 0x1; */                                   \
-	    ret_char = u8250_read(PRIV(rv)->uart, addr & 0xFFFFF);\
-	    emu_update_uart_interrupts(rv);\
-	    return ret_char;\
-	    ,   /* write */                                       \
-	    u8250_write(PRIV(rv)->uart, addr & 0xFFFFF, val);\
-	    emu_update_uart_interrupts(rv);\
-	    return;\
-	)                                                         \
-    )
+#define MMIO_OP(io, rw)                                                             \
+    switch(io){                                                                     \
+        case MMIO_PLIC:                                                             \
+            IIF(rw)( /* read */                                                     \
+                mmio_read_val = plic_read(PRIV(rv)->plic, (addr & 0x3FFFFFF) >> 2); \
+                plic_update_interrupts(PRIV(rv)->plic);                             \
+                return mmio_read_val;                                               \
+                ,    /* write */                                                    \
+                plic_write(PRIV(rv)->plic, (addr & 0x3FFFFFF) >> 2, val);           \
+                plic_update_interrupts(PRIV(rv)->plic);                             \
+                return;                                                             \
+            )                                                                       \
+            break;                                                                  \
+        case MMIO_UART:                                                             \
+            IIF(rw)( /* read */                                                     \
+                mmio_read_val = u8250_read(PRIV(rv)->uart, addr & 0xFFFFF);         \
+                emu_update_uart_interrupts(rv);                                     \
+                return mmio_read_val;                                               \
+                ,    /* write */                                                    \
+                u8250_write(PRIV(rv)->uart, addr & 0xFFFFF, val);                   \
+                emu_update_uart_interrupts(rv);                                     \
+                return;                                                             \
+            )                                                                       \
+            break;                                                                  \
+        default:                                                                    \
+            fprintf(stderr, "unknown MMIO type %d\n", io);                          \
+            break;                                                                  \
+    }
 /* clang-format on */
 
 #define MMIO_READ()                                         \
     do {                                                    \
-        uint32_t read_val;                                  \
+        uint32_t mmio_read_val;                             \
         if ((addr >> 28) == 0xF) { /* MMIO at 0xF_______ */ \
             /* 256 regions of 1MiB */                       \
             switch ((addr >> 20) & MASK(8)) {               \
@@ -286,6 +295,8 @@ static uint32_t mmu_read_w(riscv_t *rv, const uint32_t addr)
 
         MMIO_READ();
     }
+
+    __UNREACHABLE;
 }
 
 static uint16_t mmu_read_s(riscv_t *rv, const uint32_t addr)
@@ -323,6 +334,8 @@ static uint8_t mmu_read_b(riscv_t *rv, const uint32_t addr)
 
         MMIO_READ();
     }
+
+    __UNREACHABLE;
 }
 
 static void mmu_write_w(riscv_t *rv, const uint32_t addr, const uint32_t val)
