@@ -260,6 +260,10 @@ tool: $(TOOLS_BIN)
 include mk/riscv-arch-test.mk
 include mk/tests.mk
 
+# Build images
+build-img:
+	scripts/build-img.sh
+
 # the prebuilt executables are built for "rv32im"
 CHECK_ELF_FILES :=
 
