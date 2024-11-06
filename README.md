@@ -58,6 +58,34 @@ If you don't want the JIT compilation feature, simply build with the following:
 $ make
 ```
 
+### Experimental system emulation
+Device Tree compiler (dtc) is required. To install it on Debian/Ubuntu Linux, enter the following command:
+```
+$ sudo apt install device-tree-compiler
+```
+For macOS, use the following command:
+```
+$ brew install dtc
+```
+
+#### Build and Run
+Build and run using default images (the default images will be fetched from [rv32emu-prebuilt](https://github.com/sysprog21/rv32emu-prebuilt) before running):
+```shell
+$ make ENABLE_SYSTEM=1 system
+```
+
+Build using run using specified images:
+```shell
+$ make ENABLE_SYSTEM=1
+$ build/rv32emu -k <kernel_img_path> -i <rootfs_img_path> -b <dtb_path>
+```
+
+#### Build Linux kernel image and rootfs image
+An automated build script is provided to compile the RISC-V cross-compiler, Busybox, and Linux kernel from source. Please note that it only supports the Linux host environment.
+```
+$ make build-img
+```
+
 ### Verify with prebuilt RISC-V ELF files
 
 Run sample RV32I[M] programs:
@@ -145,7 +173,7 @@ For macOS users, installing `sdiff` might be required:
 $ brew install diffutils
 ```
 
-To run the tests for specific extension, set the environmental variable `RISCV_DEVICE` to one of `I`, `M`, `A`, `F`, `C`, `Zifencei`, `privilege`.
+To run the tests for specific extension, set the environmental variable `RISCV_DEVICE` to one of `I`, `M`, `A`, `F`, `C`, `Zifencei`, `privilege`, `SYSTEM`.
 ```shell
 $ make arch-test RISCV_DEVICE=I
 ```
