@@ -21,6 +21,10 @@ $(OUT)/%.o: tools/%.c
 # GDBSTUB is disabled to exclude the mini-gdb during compilation.
 $(HIST_BIN): $(HIST_OBJS)
 	$(VECHO) "  LD\t$@\n"
-	$(Q)$(CC) -o $@ -D RV32_FEATURE_GDBSTUB=0 $^ $(LDFLAGS) 
+	$(Q)$(CC) -o $@ -D RV32_FEATURE_GDBSTUB=0 $^ $(LDFLAGS)
 
 TOOLS_BIN += $(HIST_BIN)
+
+# Build Linux image
+build-linux-img:
+	tools/build-linux-image.sh

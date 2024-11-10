@@ -68,7 +68,7 @@ For macOS, use the following command:
 $ brew install dtc
 ```
 
-#### Build and Run
+#### Build and run system emulation
 Build and run using default images (the default images will be fetched from [rv32emu-prebuilt](https://github.com/sysprog21/rv32emu-prebuilt) before running):
 ```shell
 $ make ENABLE_SYSTEM=1 system
@@ -80,10 +80,10 @@ $ make ENABLE_SYSTEM=1
 $ build/rv32emu -k <kernel_img_path> -i <rootfs_img_path> -b <dtb_path>
 ```
 
-#### Build Linux kernel image and rootfs image
-An automated build script is provided to compile the RISC-V cross-compiler, Busybox, and Linux kernel from source. Please note that it only supports the Linux host environment.
+#### Build Linux image
+An automated build script is provided to compile the RISC-V cross-compiler, Busybox, and Linux kernel from source. Please note that it only supports the Linux host environment. It can be found at tools/build-linux-image.sh.
 ```
-$ make build-img
+$ make build-linux-img
 ```
 
 ### Verify with prebuilt RISC-V ELF files
