@@ -17,36 +17,36 @@ function OK
     printf " [ ${PASS_COLOR} OK ${NO_COLOR} ]\n"
 }
 
+SRC_DIR=/tmp
+
 PARALLEL="-j$(nproc)"
 
 function do_buildroot
 {
-    ASSERT git clone https://github.com/buildroot/buildroot -b 2024.05.2 --depth=1
-    cp -f assets/system/configs/buildroot.config buildroot/.config
-    cp -f assets/system/configs/busybox.config buildroot/busybox.config
+    cp -f assets/system/configs/buildroot.config $SRC_DIR/buildroot/.config
+    cp -f assets/system/configs/busybox.config $SRC_DIR/buildroot/busybox.config
     # Otherwise, the error below raises:
     #   You seem to have the current working directory in your
     #   LD_LIBRARY_PATH environment variable. This doesn't work.
     unset LD_LIBRARY_PATH
-    pushd buildroot
+    pushd $SRC_DIR/buildroot
     ASSERT make olddefconfig
     ASSERT make $PARALLEL
     popd
-    cp -f buildroot/output/images/rootfs.cpio ./build/
+    cp -f $SRC_DIR/buildroot/output/images/rootfs.cpio ./build/
 }
 
 function do_linux
 {
-    ASSERT git clone https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git -b linux-6.1.y --depth=1
-    cp -f assets/system/configs/linux.config linux/.config
-    export PATH="$PWD/buildroot/output/host/bin:$PATH"
+    cp -f assets/system/configs/linux.config $SRC_DIR/linux/.config
+    export PATH="$SRC_DIR/buildroot/output/host/bin:$PATH"
     export CROSS_COMPILE=riscv32-buildroot-linux-gnu-
     export ARCH=riscv
-    pushd linux
+    pushd $SRC_DIR/linux
     ASSERT make olddefconfig
     ASSERT make $PARALLEL
     popd
-    cp -f linux/arch/riscv/boot/Image ./build/
+    cp -f $SRC_DIR/linux/arch/riscv/boot/Image ./build/
 }
 
 do_buildroot && OK

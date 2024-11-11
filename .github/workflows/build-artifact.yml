@@ -32,8 +32,8 @@ jobs:
         uses: tj-actions/changed-files@v45
         with:
           files: |
-            .ci/buildroot_version.txt
-            .ci/linux_version.txt
+            # FIXME: detect only Linux image version changes
+            mk/external.mk
       - name: Set alias
         id: has_changed_files
         run: |
@@ -67,11 +67,12 @@ jobs:
           sudo apt-get install -q -y build-essential git
       - name: Build Linux image
         run: |
+          make build-linux-image
           make artifact ENABLE_PREBUILT=0 ENABLE_SYSTEM=1
-          mkdir -p /tmp/rv32emu-linux-image-prebuilt
-          mv build/Image /tmp/rv32emu-linux-image-prebuilt
-          mv build/rootfs.cpio /tmp/rv32emu-linux-image-prebuilt
-          mv build/sha1sum-linux-image /tmp/rv32emu-linux-image-prebuilt
+          mkdir -p /tmp/rv32emu-linux-image-prebuilt/linux-image
+          mv build/Image /tmp/rv32emu-linux-image-prebuilt/linux-image
+          mv build/rootfs.cpio /tmp/rv32emu-linux-image-prebuilt/linux-image
+          mv build/sha1sum-linux-image /tmp
       - name: Create tarball
         run: |
           cd /tmp

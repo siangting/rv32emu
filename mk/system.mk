@@ -19,7 +19,8 @@ deps += $(DEV_OBJS:%.o=%.o.d)
 OBJS_EXT += system.o
 
 # system target execution by using default dependencies
-system_action := ($(BIN) -k $(OUT)/Image -i $(OUT)/rootfs.cpio -b $(OUT)/minimal.dtb)
+LINUX_IMAGE_DIR := linux-image
+system_action := ($(BIN) -k $(OUT)/$(LINUX_IMAGE_DIR)/Image -i $(OUT)/$(LINUX_IMAGE_DIR)/rootfs.cpio -b $(OUT)/minimal.dtb)
 system_deps += artifact $(BUILD_DTB) $(BIN)
 system: $(system_deps)
 	$(system_action)
