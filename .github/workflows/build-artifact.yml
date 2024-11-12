@@ -28,11 +28,10 @@ jobs:
             tests/scimark2/**
             tests/*.c
       - name: Test file change of Linux image
-        id: test-linux-image-change
+        id: test-linux-image-version-change
         uses: tj-actions/changed-files@v45
         with:
           files: |
-            # FIXME: detect only Linux image version changes
             mk/external.mk
       - name: Set alias
         id: has_changed_files
@@ -42,18 +41,24 @@ jobs:
           else
             echo "has_changed_files=false" >> $GITHUB_OUTPUT
           fi
-          if [[ ${{ steps.test-linux-image-change.outputs.any_modified }} == true ]]; then
-            echo "has_changed_linux_image=true" >> $GITHUB_OUTPUT
+          if [[ ${{ steps.test-linux-image-version-change.outputs.any_modified }} == true ]]; then
+            # Determine if the changes are from Buildroot or the Linux version
+            echo -n $(git --no-pager diff HEAD^ HEAD | grep -e "+BUILDROOT_VERSION" -e "+LINUX_VERSION") >> linux-image-version-change
+            if [[ -s linux-image-version-change ]]; then
+                echo "has_changed_linux_image_version=true" >> $GITHUB_OUTPUT
+            else
+                echo "has_changed_linux_image_version=false" >> $GITHUB_OUTPUT
+            fi
           else
-            echo "has_changed_linux_image=false" >> $GITHUB_OUTPUT
+            echo "has_changed_linux_image_version=false" >> $GITHUB_OUTPUT
           fi
     outputs:
       has_changed_files: ${{ steps.has_changed_files.outputs.has_changed_files }}
-      has_changed_linux_image: ${{ steps.has_changed_files.outputs.has_changed_linux_image }}
+      has_changed_linux_image_version: ${{ steps.has_changed_files.outputs.has_changed_linux_image_version }}
 
   build-linux-image-artifact:
     needs: [detect-file-change]
-    if: ${{ needs.detect-file-change.outputs.has_changed_linux_image == 'true' || github.event_name == 'workflow_dispatch' }}
+    if: ${{ needs.detect-file-change.outputs.has_changed_linux_image_version == 'true' || github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout repository
