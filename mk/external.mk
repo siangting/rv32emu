@@ -109,7 +109,7 @@ BUILDROOT_DATA_URL = git clone https://github.com/buildroot/buildroot $(BUILDROO
 BUILDROOT_DATA_SHA1 = e6677825313cdb47f6e62e4dc09a22ae30699b69
 
 # Linux kernel
-LINUX_VERSION = linux-6.6.y
+LINUX_VERSION = linux-6.1.y
 LINUX_DATA = /tmp/linux
 LINUX_DATA_URL = git clone https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git $(LINUX_DATA) -b $(LINUX_VERSION) --depth=1
 LINUX_DATA_SHA1 = 30e95c62e8264aba948bb52d75af57d435bb6b8e
