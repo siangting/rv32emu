@@ -1,5 +1,6 @@
 # Peripherals for system emulation
 ifeq ($(call has, SYSTEM), 1)
+
 DEV_OUT := $(OUT)/devices
 DEV_SRC := src/devices
 

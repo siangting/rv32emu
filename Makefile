@@ -25,6 +25,7 @@ $(call set-feature, ELF_LOADER)
 ENABLE_ON_TEST ?= 0
 $(call set-feature, ON_TEST)
 
+# Enable system emulation
 ENABLE_SYSTEM ?= 0
 $(call set-feature, SYSTEM)
 
@@ -340,7 +341,7 @@ endif
 endif
 
 clean:
-	$(RM) $(BIN) $(OBJS) $(DEV_OBJS) $(HIST_BIN) $(HIST_OBJS) $(deps) $(WEB_FILES) $(CACHE_OUT) src/rv32_jit.c
+	$(RM) $(BIN) $(OBJS) $(DEV_OBJS) $(BUILD_DTB) $(HIST_BIN) $(HIST_OBJS) $(deps) $(WEB_FILES) $(CACHE_OUT) src/rv32_jit.c
 distclean: clean
 	-$(RM) $(DOOM_DATA) $(QUAKE_DATA)
 	$(RM) -r $(TIMIDITY_DATA)
