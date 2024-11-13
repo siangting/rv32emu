@@ -78,6 +78,8 @@ jobs:
         run: |
           RELEASE_TAG=$(date +'%Y.%m.%d'-Linux-Image)
           cd /tmp
+          touch rv32emu-linux-image-prebuilt.tar.gz
+          touch sha1sum-linux-image
           gh release create $RELEASE_TAG \
             --repo ChinYikMing/test_builtroot \
             --title "$RELEASE_TAG""-nightly"
