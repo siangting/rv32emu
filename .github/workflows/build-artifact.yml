@@ -68,14 +68,6 @@ jobs:
           sudo apt-get update -q -y
           sudo apt-get upgrade -q -y
           sudo apt-get install -q -y build-essential git
-      - name: Build Linux image
-        run: |
-          make build-linux-image
-          make artifact ENABLE_PREBUILT=0 ENABLE_SYSTEM=1
-          mkdir -p /tmp/rv32emu-linux-image-prebuilt/linux-image
-          mv build/Image /tmp/rv32emu-linux-image-prebuilt/linux-image
-          mv build/rootfs.cpio /tmp/rv32emu-linux-image-prebuilt/linux-image
-          mv build/sha1sum-linux-image /tmp
       - name: Create tarball
         run: |
           cd /tmp
@@ -86,8 +78,13 @@ jobs:
         run: |
           RELEASE_TAG=$(date +'%Y.%m.%d'-Linux-Image)
           cd /tmp
-          ls rv32emu-linux-image-prebuilt.tar.gz
-          ls sha1sum-linux-image
+          gh release create $RELEASE_TAG \
+            --repo ChinYikMing/test_builtroot \
+            --title "$RELEASE_TAG""-nightly"
+          gh release upload $RELEASE_TAG \
+            rv32emu-linux-image-prebuilt.tar.gz \
+            sha1sum-linux-image \
+            --repo ChinYikMing/test_builtroot
 
   build-artifact:
     needs: [detect-file-change]
