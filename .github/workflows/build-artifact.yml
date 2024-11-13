@@ -73,6 +73,7 @@ jobs:
           cd /tmp
           touch rv32emu-linux-image-prebuilt
           touch sha1sum-linux-image
+          echo "apple" >> sha1sum-linux-image
           tar -zcvf rv32emu-linux-image-prebuilt.tar.gz rv32emu-linux-image-prebuilt
       - name: Create GitHub Release
         env:
