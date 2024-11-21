@@ -154,6 +154,7 @@ enum {
 #define RV_PRIV_S_MODE 1
 #define RV_PRIV_M_MODE 3
 
+typedef uint32_t pte_t;
 #define PTE_V (1U)
 #define PTE_R (1U << 1)
 #define PTE_W (1U << 2)
