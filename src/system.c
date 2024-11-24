@@ -110,7 +110,7 @@ static bool ppn_is_valid(riscv_t *rv, uint32_t ppn)
  * @level: the level of which the PTE is located
  * @return: NULL if a not found or fault else the corresponding PTE
  */
-static uint32_t *mmu_walk(riscv_t *rv, const uint32_t addr, uint32_t *level)
+static uint32_t *mmu_walk(riscv_t *rv, const uint32_t addr, uint32_t *level, pte_t **pte_ref)
 {
     vm_attr_t *attr = PRIV(rv);
     uint32_t ppn = rv->csr_satp & MASK(22);
@@ -125,6 +125,7 @@ static uint32_t *mmu_walk(riscv_t *rv, const uint32_t addr, uint32_t *level)
         uint32_t vpn =
             (addr >> RV_PG_SHIFT >> (i * (RV_PG_SHIFT - 2))) & MASK(10);
         pte_t *pte = page_table + vpn;
+	*pte_ref = pte;
 
         uint8_t XWRV_bit = (*pte & MASK(4));
         switch (XWRV_bit) {
@@ -262,10 +263,13 @@ static uint32_t mmu_ifetch(riscv_t *rv, const uint32_t addr)
         return memory_ifetch(addr);
 
     uint32_t level;
-    pte_t *pte = mmu_walk(rv, addr, &level);
+    pte_t *pte_ref;
+    pte_t *pte = mmu_walk(rv, addr, &level, &pte_ref);
+    pte = pte_ref;
     bool ok = MMU_FAULT_CHECK(ifetch, rv, pte, addr, PTE_X);
     if (unlikely(!ok))
-        pte = mmu_walk(rv, addr, &level);
+        pte = mmu_walk(rv, addr, &level, &pte_ref);
+    pte = pte_ref;
 
     if (need_retranslate) {
         return 0;
@@ -281,10 +285,13 @@ static uint32_t mmu_read_w(riscv_t *rv, const uint32_t addr)
         return memory_read_w(addr);
 
     uint32_t level;
-    pte_t *pte = mmu_walk(rv, addr, &level);
+    pte_t *pte_ref;
+    pte_t *pte = mmu_walk(rv, addr, &level, &pte_ref);
+    pte = pte_ref;
     bool ok = MMU_FAULT_CHECK(read, rv, pte, addr, PTE_R);
     if (unlikely(!ok))
-        pte = mmu_walk(rv, addr, &level);
+        pte = mmu_walk(rv, addr, &level, &pte_ref);
+    pte = pte_ref;
 
     {
         get_ppn_and_offset();
@@ -305,10 +312,13 @@ static uint16_t mmu_read_s(riscv_t *rv, const uint32_t addr)
         return memory_read_s(addr);
 
     uint32_t level;
-    pte_t *pte = mmu_walk(rv, addr, &level);
+    pte_t *pte_ref;
+    pte_t *pte = mmu_walk(rv, addr, &level, &pte_ref);
+    pte = pte_ref;
     bool ok = MMU_FAULT_CHECK(read, rv, pte, addr, PTE_R);
     if (unlikely(!ok))
-        pte = mmu_walk(rv, addr, &level);
+        pte = mmu_walk(rv, addr, &level, &pte_ref);
+    pte = pte_ref;
 
     get_ppn_and_offset();
     return memory_read_s(ppn | offset);
@@ -320,10 +330,13 @@ static uint8_t mmu_read_b(riscv_t *rv, const uint32_t addr)
         return memory_read_b(addr);
 
     uint32_t level;
-    pte_t *pte = mmu_walk(rv, addr, &level);
+    pte_t *pte_ref;
+    pte_t *pte = mmu_walk(rv, addr, &level, &pte_ref);
+    pte = pte_ref;
     bool ok = MMU_FAULT_CHECK(read, rv, pte, addr, PTE_R);
     if (unlikely(!ok))
-        pte = mmu_walk(rv, addr, &level);
+        pte = mmu_walk(rv, addr, &level, &pte_ref);
+    pte = pte_ref;
 
     {
         get_ppn_and_offset();
@@ -344,10 +357,13 @@ static void mmu_write_w(riscv_t *rv, const uint32_t addr, const uint32_t val)
         return memory_write_w(addr, (uint8_t *) &val);
 
     uint32_t level;
-    pte_t *pte = mmu_walk(rv, addr, &level);
+    pte_t *pte_ref;
+    pte_t *pte = mmu_walk(rv, addr, &level, &pte_ref);
+    pte = pte_ref;
     bool ok = MMU_FAULT_CHECK(write, rv, pte, addr, PTE_W);
     if (unlikely(!ok))
-        pte = mmu_walk(rv, addr, &level);
+        pte = mmu_walk(rv, addr, &level, &pte_ref);
+    pte = pte_ref;
 
     {
         get_ppn_and_offset();
@@ -368,10 +384,13 @@ static void mmu_write_s(riscv_t *rv, const uint32_t addr, const uint16_t val)
         return memory_write_s(addr, (uint8_t *) &val);
 
     uint32_t level;
-    pte_t *pte = mmu_walk(rv, addr, &level);
+    pte_t *pte_ref;
+    pte_t *pte = mmu_walk(rv, addr, &level, &pte_ref);
+    pte = pte_ref;
     bool ok = MMU_FAULT_CHECK(write, rv, pte, addr, PTE_W);
     if (unlikely(!ok))
-        pte = mmu_walk(rv, addr, &level);
+        pte = mmu_walk(rv, addr, &level, &pte_ref);
+    pte = pte_ref;
 
     get_ppn_and_offset();
     memory_write_s(ppn | offset, (uint8_t *) &val);
@@ -383,10 +402,13 @@ static void mmu_write_b(riscv_t *rv, const uint32_t addr, const uint8_t val)
         return memory_write_b(addr, (uint8_t *) &val);
 
     uint32_t level;
-    pte_t *pte = mmu_walk(rv, addr, &level);
+    pte_t *pte_ref;
+    pte_t *pte = mmu_walk(rv, addr, &level, &pte_ref);
+    pte = pte_ref;
     bool ok = MMU_FAULT_CHECK(write, rv, pte, addr, PTE_W);
     if (unlikely(!ok))
-        pte = mmu_walk(rv, addr, &level);
+        pte = mmu_walk(rv, addr, &level, &pte_ref);
+    pte = pte_ref;
 
     {
         get_ppn_and_offset();

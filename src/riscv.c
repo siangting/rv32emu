@@ -396,7 +396,7 @@ riscv_t *rv_create(riscv_user_t rv_attr)
     attr->uart->in_fd = 0;
     attr->uart->out_fd = 1;
 
-    capture_keyboard_input();
+    //capture_keyboard_input();
 #endif /* !RV32_HAS(SYSTEM) || (RV32_HAS(SYSTEM) && RV32_HAS(ELF_LOADER)) */
 
     /* default standard stream.

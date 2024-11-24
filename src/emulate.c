@@ -999,6 +999,7 @@ void rv_step(void *arg)
          * the previous block.
          */
 
+	prev = NULL;
         if (prev) {
             rv_insn_t *last_ir = prev->ir_tail;
             /* chain block */

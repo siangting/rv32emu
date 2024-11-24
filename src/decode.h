@@ -62,7 +62,7 @@ enum op_field {
     _(slli, 0, 4, 1, ENC(rs1, rd))                     \
     _(srli, 0, 4, 1, ENC(rs1, rd))                     \
     _(srai, 0, 4, 1, ENC(rs1, rd))                     \
-    _(add, 0, 4, 1, ENC(rs1, rs2, rd))                 \
+    _(add, 1, 4, 1, ENC(rs1, rs2, rd))                 \
     _(sub, 0, 4, 1, ENC(rs1, rs2, rd))                 \
     _(sll, 0, 4, 1, ENC(rs1, rs2, rd))                 \
     _(slt, 0, 4, 1, ENC(rs1, rs2, rd))                 \
@@ -91,11 +91,11 @@ enum op_field {
     /* RV32 Zicsr Standard Extension */                \
     IIF(RV32_HAS(Zicsr))(                              \
         _(csrrw, 1, 4, 0, ENC(rs1, rd))                \
-        _(csrrs, 0, 4, 0, ENC(rs1, rd))                \
-        _(csrrc, 0, 4, 0, ENC(rs1, rd))                \
-        _(csrrwi, 0, 4, 0, ENC(rs1, rd))               \
-        _(csrrsi, 0, 4, 0, ENC(rs1, rd))               \
-        _(csrrci, 0, 4, 0, ENC(rs1, rd))               \
+        _(csrrs, 1, 4, 0, ENC(rs1, rd))                \
+        _(csrrc, 1, 4, 0, ENC(rs1, rd))                \
+        _(csrrwi, 1, 4, 0, ENC(rs1, rd))               \
+        _(csrrsi, 1, 4, 0, ENC(rs1, rd))               \
+        _(csrrci, 1, 4, 0, ENC(rs1, rd))               \
     )                                                  \
     /* RV32M Standard Extension */                     \
     IIF(RV32_HAS(EXT_M))(                              \
