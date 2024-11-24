@@ -62,7 +62,7 @@ enum op_field {
     _(slli, 0, 4, 1, ENC(rs1, rd))                     \
     _(srli, 0, 4, 1, ENC(rs1, rd))                     \
     _(srai, 0, 4, 1, ENC(rs1, rd))                     \
-    _(add, 1, 4, 1, ENC(rs1, rs2, rd))                 \
+    _(add, 0, 4, 1, ENC(rs1, rs2, rd))                 \
     _(sub, 0, 4, 1, ENC(rs1, rs2, rd))                 \
     _(sll, 0, 4, 1, ENC(rs1, rs2, rd))                 \
     _(slt, 0, 4, 1, ENC(rs1, rs2, rd))                 \

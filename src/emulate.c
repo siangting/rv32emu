@@ -621,6 +621,11 @@ retranslate:
             break;
         }
 
+	//???
+	//if(IF_insn(ir, add)){
+	//	break;
+	//}
+
         ir = mpool_calloc(rv->block_ir_mp);
     }
 
@@ -822,12 +827,12 @@ static block_t *block_find_or_translate(riscv_t *rv)
         next = block_alloc(rv);
         block_translate(rv, next);
 
-        optimize_constant(rv, next);
+        //optimize_constant(rv, next);
 #if RV32_HAS(GDBSTUB)
         if (likely(!rv->debug_mode))
 #endif
             /* macro operation fusion */
-            match_pattern(rv, next);
+            //match_pattern(rv, next);
 
 #if !RV32_HAS(JIT)
         /* insert the block into block map */
@@ -999,7 +1004,7 @@ void rv_step(void *arg)
          * the previous block.
          */
 
-	prev = NULL;
+	//prev = NULL;
         if (prev) {
             rv_insn_t *last_ir = prev->ir_tail;
             /* chain block */

@@ -7,6 +7,8 @@
 #error "Do not manage to build this file unless you enable system support."
 #endif
 
+#include <assert.h>
+
 #include "devices/plic.h"
 #include "devices/uart.h"
 #include "riscv_private.h"
@@ -142,16 +144,20 @@ static uint32_t *mmu_walk(riscv_t *rv, const uint32_t addr, uint32_t *level, pte
         case RWX_PAGE:
             ppn = (*pte >> (RV_PG_SHIFT - 2));
             if (*level == 1 &&
-                unlikely(ppn & MASK(10))) /* misaligned superpage */
+                unlikely(ppn & MASK(10))){ /* misaligned superpage */
+		*pte_ref = NULL;
                 return NULL;
+	    }
             return pte; /* leaf PTE */
         case RESRV_PAGE1:
         case RESRV_PAGE2:
         default:
+    		*pte_ref = NULL;
             return NULL;
         }
     }
 
+    *pte_ref = NULL;
     return NULL;
 }
 
@@ -235,6 +241,7 @@ MMU_FAULT_CHECK_IMPL(write, pagefault_store)
     uint32_t ppn;                                             \
     uint32_t offset;                                          \
     do {                                                      \
+	    assert(pte);\
         ppn = *pte >> (RV_PG_SHIFT - 2) << RV_PG_SHIFT;       \
         offset = level == 1 ? addr & MASK((RV_PG_SHIFT + 10)) \
                             : addr & MASK(RV_PG_SHIFT);       \
@@ -275,6 +282,8 @@ static uint32_t mmu_ifetch(riscv_t *rv, const uint32_t addr)
         return 0;
     }
 
+    assert(pte);
+
     get_ppn_and_offset();
     return memory_ifetch(ppn | offset);
 }
@@ -289,13 +298,27 @@ static uint32_t mmu_read_w(riscv_t *rv, const uint32_t addr)
     pte_t *pte = mmu_walk(rv, addr, &level, &pte_ref);
     pte = pte_ref;
     bool ok = MMU_FAULT_CHECK(read, rv, pte, addr, PTE_R);
-    if (unlikely(!ok))
-        pte = mmu_walk(rv, addr, &level, &pte_ref);
+    if(!ok){
+    	pte = mmu_walk(rv, addr, &level, &pte_ref);
+	if(!addr){
+		printf("addr is zero here\n");
+	}
+    }
     pte = pte_ref;
+
+    assert(pte);
 
     {
         get_ppn_and_offset();
+	    if(addr == 0){
+	    	printf("ppn: %x, offset: %x\n", ppn, offset);
+	    	printf("level: %x\n", level);
+	    	printf("pte: %x\n", *pte);
+	    	printf("pte_ref: %x\n", *pte_ref);
+	    	printf("level 1 ppn: %x\n", *pte >> 20);
+	    }
         const uint32_t addr = ppn | offset;
+	assert(addr);
         const vm_attr_t *attr = PRIV(rv);
         if (addr < attr->mem->mem_size)
             return memory_read_w(addr);
@@ -319,6 +342,7 @@ static uint16_t mmu_read_s(riscv_t *rv, const uint32_t addr)
     if (unlikely(!ok))
         pte = mmu_walk(rv, addr, &level, &pte_ref);
     pte = pte_ref;
+    assert(pte);
 
     get_ppn_and_offset();
     return memory_read_s(ppn | offset);
@@ -337,6 +361,7 @@ static uint8_t mmu_read_b(riscv_t *rv, const uint32_t addr)
     if (unlikely(!ok))
         pte = mmu_walk(rv, addr, &level, &pte_ref);
     pte = pte_ref;
+    assert(pte);
 
     {
         get_ppn_and_offset();
@@ -364,6 +389,7 @@ static void mmu_write_w(riscv_t *rv, const uint32_t addr, const uint32_t val)
     if (unlikely(!ok))
         pte = mmu_walk(rv, addr, &level, &pte_ref);
     pte = pte_ref;
+    assert(pte);
 
     {
         get_ppn_and_offset();
@@ -391,6 +417,7 @@ static void mmu_write_s(riscv_t *rv, const uint32_t addr, const uint16_t val)
     if (unlikely(!ok))
         pte = mmu_walk(rv, addr, &level, &pte_ref);
     pte = pte_ref;
+    assert(pte);
 
     get_ppn_and_offset();
     memory_write_s(ppn | offset, (uint8_t *) &val);
@@ -409,6 +436,7 @@ static void mmu_write_b(riscv_t *rv, const uint32_t addr, const uint8_t val)
     if (unlikely(!ok))
         pte = mmu_walk(rv, addr, &level, &pte_ref);
     pte = pte_ref;
+    assert(pte);
 
     {
         get_ppn_and_offset();
