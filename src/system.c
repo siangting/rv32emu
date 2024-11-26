@@ -145,19 +145,16 @@ static uint32_t *mmu_walk(riscv_t *rv, const uint32_t addr, uint32_t *level, pte
             ppn = (*pte >> (RV_PG_SHIFT - 2));
             if (*level == 1 &&
                 unlikely(ppn & MASK(10))){ /* misaligned superpage */
-		*pte_ref = NULL;
                 return NULL;
 	    }
             return pte; /* leaf PTE */
         case RESRV_PAGE1:
         case RESRV_PAGE2:
         default:
-    		*pte_ref = NULL;
             return NULL;
         }
     }
 
-    *pte_ref = NULL;
     return NULL;
 }
 
@@ -170,6 +167,7 @@ static uint32_t *mmu_walk(riscv_t *rv, const uint32_t addr, uint32_t *level, pte
  * access permission else true
  */
 /* FIXME: handle access fault, addr out of range check */
+extern bool need_refetch;
 #define MMU_FAULT_CHECK(op, rv, pte, addr, access_bits) \
     mmu_##op##_fault_check(rv, pte, addr, access_bits)
 #define MMU_FAULT_CHECK_IMPL(op, pgfault)                                      \
@@ -192,11 +190,17 @@ static uint32_t *mmu_walk(riscv_t *rv, const uint32_t addr, uint32_t *level, pte
             __UNREACHABLE;                                                     \
             break;                                                             \
         }                                                                      \
-        if (pte && (!(*pte & PTE_V))) {                                        \
+        if (!pte) {                                                            \
+		if(scause == PAGEFAULT_INSN){\
+			need_refetch = true;\
+		}\
             SET_CAUSE_AND_TVAL_THEN_TRAP(rv, scause, stval);                   \
             return false;                                                      \
         }                                                                      \
         if (!(pte && (*pte & access_bits))) {                                  \
+		if(scause == PAGEFAULT_INSN){\
+			need_refetch = true;\
+		}\
             SET_CAUSE_AND_TVAL_THEN_TRAP(rv, scause, stval);                   \
             return false;                                                      \
         }                                                                      \
@@ -207,29 +211,9 @@ static uint32_t *mmu_walk(riscv_t *rv, const uint32_t addr, uint32_t *level, pte
          * (2) When MXR=1, loads from pages marked either readable or          \
          * executable (R=1 or X=1) will succeed.                               \
          */                                                                    \
-        if (pte && ((!(SSTATUS_MXR & rv->csr_sstatus) && !(*pte & PTE_R) &&    \
-                     (access_bits == PTE_R)) ||                                \
-                    ((SSTATUS_MXR & rv->csr_sstatus) &&                        \
-                     !((*pte & PTE_R) | (*pte & PTE_X)) &&                     \
-                     (access_bits == PTE_R)))) {                               \
-            SET_CAUSE_AND_TVAL_THEN_TRAP(rv, scause, stval);                   \
-            return false;                                                      \
-        }                                                                      \
-        /*                                                                     \
-         * When SUM=0, S-mode memory accesses to pages that are accessible by  \
-         * U-mode will fault.                                                  \
-         */                                                                    \
-        if (pte && rv->priv_mode == RV_PRIV_S_MODE &&                          \
-            !(SSTATUS_SUM & rv->csr_sstatus) && (*pte & PTE_U)) {              \
-            SET_CAUSE_AND_TVAL_THEN_TRAP(rv, scause, stval);                   \
-            return false;                                                      \
-        }                                                                      \
         /* PTE not found, map it in handler */                                 \
-        if (!pte) {                                                            \
-            SET_CAUSE_AND_TVAL_THEN_TRAP(rv, scause, stval);                   \
-            return false;                                                      \
-        }                                                                      \
         /* valid PTE */                                                        \
+	    need_refetch = false;\
         return true;                                                           \
     }
 
@@ -241,10 +225,14 @@ MMU_FAULT_CHECK_IMPL(write, pagefault_store)
     uint32_t ppn;                                             \
     uint32_t offset;                                          \
     do {                                                      \
+	    if(pte){\
 	    assert(pte);\
         ppn = *pte >> (RV_PG_SHIFT - 2) << RV_PG_SHIFT;       \
         offset = level == 1 ? addr & MASK((RV_PG_SHIFT + 10)) \
                             : addr & MASK(RV_PG_SHIFT);       \
+	    } else {\
+	    	ppn = offset = 0;\
+	    }\
     } while (0)
 
 /* The IO handler that operates when the Memory Management Unit (MMU)
@@ -276,9 +264,13 @@ static uint32_t mmu_ifetch(riscv_t *rv, const uint32_t addr)
     bool ok = MMU_FAULT_CHECK(ifetch, rv, pte, addr, PTE_X);
     if (unlikely(!ok))
         pte = mmu_walk(rv, addr, &level, &pte_ref);
-    pte = pte_ref;
+    //pte = pte_ref;
 
     if (need_retranslate) {
+        return 0;
+    }
+
+    if (!rv->is_trapped && need_refetch) {
         return 0;
     }
 
@@ -304,7 +296,7 @@ static uint32_t mmu_read_w(riscv_t *rv, const uint32_t addr)
 		printf("addr is zero here\n");
 	}
     }
-    pte = pte_ref;
+    //pte = pte_ref;
 
     assert(pte);
 
@@ -341,7 +333,7 @@ static uint16_t mmu_read_s(riscv_t *rv, const uint32_t addr)
     bool ok = MMU_FAULT_CHECK(read, rv, pte, addr, PTE_R);
     if (unlikely(!ok))
         pte = mmu_walk(rv, addr, &level, &pte_ref);
-    pte = pte_ref;
+    //pte = pte_ref;
     assert(pte);
 
     get_ppn_and_offset();
@@ -360,7 +352,7 @@ static uint8_t mmu_read_b(riscv_t *rv, const uint32_t addr)
     bool ok = MMU_FAULT_CHECK(read, rv, pte, addr, PTE_R);
     if (unlikely(!ok))
         pte = mmu_walk(rv, addr, &level, &pte_ref);
-    pte = pte_ref;
+    //pte = pte_ref;
     assert(pte);
 
     {
@@ -388,7 +380,7 @@ static void mmu_write_w(riscv_t *rv, const uint32_t addr, const uint32_t val)
     bool ok = MMU_FAULT_CHECK(write, rv, pte, addr, PTE_W);
     if (unlikely(!ok))
         pte = mmu_walk(rv, addr, &level, &pte_ref);
-    pte = pte_ref;
+    //pte = pte_ref;
     assert(pte);
 
     {
@@ -416,7 +408,7 @@ static void mmu_write_s(riscv_t *rv, const uint32_t addr, const uint16_t val)
     bool ok = MMU_FAULT_CHECK(write, rv, pte, addr, PTE_W);
     if (unlikely(!ok))
         pte = mmu_walk(rv, addr, &level, &pte_ref);
-    pte = pte_ref;
+    //pte = pte_ref;
     assert(pte);
 
     get_ppn_and_offset();
@@ -435,7 +427,7 @@ static void mmu_write_b(riscv_t *rv, const uint32_t addr, const uint8_t val)
     bool ok = MMU_FAULT_CHECK(write, rv, pte, addr, PTE_W);
     if (unlikely(!ok))
         pte = mmu_walk(rv, addr, &level, &pte_ref);
-    pte = pte_ref;
+    //pte = pte_ref;
     assert(pte);
 
     {

@@ -45,6 +45,7 @@ extern struct target_ops gdbstub_ops;
 static uint32_t reloc_enable_mmu_jalr_addr;
 static bool reloc_enable_mmu = false;
 bool need_retranslate = false;
+bool need_refetch = false;
 #endif
 
 static void rv_trap_default_handler(riscv_t *rv)
@@ -176,6 +177,7 @@ static uint32_t *csr_get_ptr(riscv_t *rv, uint32_t csr)
  * If rd == x0, then the instruction shall not read the CSR and shall not cause
  * any of the side effects that might occur on a CSR read.
  */
+static need_clear_map = false;
 static uint32_t csr_csrrw(riscv_t *rv, uint32_t csr, uint32_t val)
 {
     uint32_t *c = csr_get_ptr(rv, csr);
@@ -195,8 +197,9 @@ static uint32_t csr_csrrw(riscv_t *rv, uint32_t csr, uint32_t val)
      * guestOS's process might have same VA,
      * so block_map cannot be reused
      */
-    if (c == &rv->csr_satp)
-        block_map_clear(rv);
+    if (c == &rv->csr_satp){
+    	need_clear_map = true;
+    }
 #endif
 
     return out;
@@ -313,6 +316,7 @@ static void block_insert(block_map_t *map, const block_t *block)
 /* try to locate an already translated block in the block map */
 static block_t *block_find(const block_map_t *map, const uint32_t addr)
 {
+	//return NULL;
     assert(map);
     uint32_t index = map_hash(addr);
     const uint32_t mask = map->block_capacity - 1;
@@ -385,6 +389,11 @@ static uint32_t peripheral_update_ctr = 64;
         code;                                                         \
     nextop:                                                           \
         PC += __rv_insn_##inst##_len;                                 \
+        if (unlikely(need_clear_map)) {                             \
+        rv->csr_cycle = cycle;                                        \
+        rv->PC = PC;                                                  \
+        return false;                                                  \
+        }                                                             \
         if (unlikely(RVOP_NO_NEXT(ir))) {                             \
             goto end_op;                                              \
         }                                                             \
@@ -564,10 +573,17 @@ FORCE_INLINE bool insn_is_unconditional_branch(uint8_t opcode)
     return false;
 }
 
+static bool use_orig_pc = false;
+static uint32_t orig_pc;
 static void block_translate(riscv_t *rv, block_t *block)
 {
 retranslate:
-    block->pc_start = block->pc_end = rv->PC;
+    if(use_orig_pc)
+	    block->pc_start = block->pc_end = orig_pc;
+    else
+	    block->pc_start = block->pc_end = rv->PC;
+
+    use_orig_pc = false;
 
     rv_insn_t *prev_ir = NULL;
     rv_insn_t *ir = mpool_calloc(rv->block_ir_mp);
@@ -585,6 +601,14 @@ retranslate:
         if (!insn && need_retranslate) {
             memset(block, 0, sizeof(block_t));
             need_retranslate = false;
+            goto retranslate;
+        }
+
+        if (!insn && need_refetch) {
+            memset(block, 0, sizeof(block_t));
+            need_refetch = false;
+	    block_map_clear(rv);
+	    use_orig_pc = true;
             goto retranslate;
         }
 #endif
@@ -809,6 +833,10 @@ static block_t *block_find_or_translate(riscv_t *rv)
 {
 #if !RV32_HAS(JIT)
     block_map_t *map = &rv->block_map;
+    if(need_clear_map){
+	block_map_clear(rv);
+    	need_clear_map = false;
+    }
     /* lookup the next block in the block map */
     block_t *next = block_find(map, rv->PC);
 #else
@@ -825,6 +853,7 @@ static block_t *block_find_or_translate(riscv_t *rv)
 #endif
         /* allocate a new block */
         next = block_alloc(rv);
+	orig_pc = rv->PC;
         block_translate(rv, next);
 
         //optimize_constant(rv, next);

@@ -26,7 +26,8 @@ else # Linux
     TIMEOUT=90
 fi
 
-for i in {1..20}; do
+for i in {1..100}; do
+echo ${i}
 ASSERT expect <<DONE
 set timeout ${TIMEOUT}
 spawn build/rv32emu -k ./build/linux-image/Image -i ./build/linux-image/rootfs.cpio -b build/minimal.dtb
