@@ -45,7 +45,6 @@ extern struct target_ops gdbstub_ops;
 static uint32_t reloc_enable_mmu_jalr_addr;
 static bool reloc_enable_mmu = false;
 bool need_retranslate = false;
-bool need_refetch = false;
 #endif
 
 static void rv_trap_default_handler(riscv_t *rv)
@@ -380,12 +379,43 @@ extern void emu_update_uart_interrupts(riscv_t *rv);
 static uint32_t peripheral_update_ctr = 64;
 #endif
 
+bool use_chain = false;
+struct rv_insn *tgt;
+
 /* Interpreter-based execution path */
 #define RVOP(inst, code, asm)                                         \
     static bool do_##inst(riscv_t *rv, rv_insn_t *ir, uint64_t cycle, \
                           uint32_t PC)                                \
     {                                                                 \
         cycle++;                                                      \
+        if (use_chain) {                                              \
+            rv_insn_t *n = ir;                                        \
+            rv_insn_t *test_ir = mpool_calloc(rv->block_ir_mp);       \
+            uint32_t test_pc = PC;                                    \
+            while (n) {                                               \
+                uint32_t insn_len;                                    \
+                uint32_t insn = rv->io.mem_ifetch(rv, test_pc);       \
+                assert(insn);                                         \
+                /* decode the instruction */                          \
+                if (!rv_decode(test_ir, insn)) {                      \
+                    exit(1);                                          \
+                }                                                     \
+                insn_len = is_compressed(insn) ? 2 : 4;               \
+                if (tgt->opcode != test_ir->opcode) {                 \
+                    block_map_clear(rv);                              \
+                    rv->csr_cycle = cycle;                            \
+                    rv->PC = PC;                                      \
+                    return false;                                     \
+                }                                                     \
+                n = n->next;                                          \
+                tgt = n;                                              \
+                test_pc += insn_len;                                  \
+            }                                                         \
+            /*assert(tgt->opcode == test_ir->opcode);\*/              \
+            use_chain = false;                                        \
+        } else {                                                      \
+            /*printf("use chain OK!\n");\*/                           \
+        }                                                             \
         code;                                                         \
     nextop:                                                           \
         PC += __rv_insn_##inst##_len;                                 \
@@ -603,14 +633,6 @@ retranslate:
             need_retranslate = false;
             goto retranslate;
         }
-
-        if (!insn && need_refetch) {
-            memset(block, 0, sizeof(block_t));
-            need_refetch = false;
-	    block_map_clear(rv);
-	    use_orig_pc = true;
-            goto retranslate;
-        }
 #endif
 
         assert(insn);
@@ -645,10 +667,10 @@ retranslate:
             break;
         }
 
-	//???
-	//if(IF_insn(ir, add)){
-	//	break;
-	//}
+        //???
+        // if(IF_insn(ir, add)){
+        //	break;
+        //}
 
         ir = mpool_calloc(rv->block_ir_mp);
     }
@@ -856,16 +878,16 @@ static block_t *block_find_or_translate(riscv_t *rv)
 	orig_pc = rv->PC;
         block_translate(rv, next);
 
-        //optimize_constant(rv, next);
+        // optimize_constant(rv, next);
 #if RV32_HAS(GDBSTUB)
         if (likely(!rv->debug_mode))
 #endif
-            /* macro operation fusion */
-            //match_pattern(rv, next);
+        /* macro operation fusion */
+        // match_pattern(rv, next);
 
 #if !RV32_HAS(JIT)
-        /* insert the block into block map */
-        block_insert(&rv->block_map, next);
+            /* insert the block into block map */
+            block_insert(&rv->block_map, next);
 #else
         /* insert the block into block cache */
         block_t *delete_target = cache_put(rv->block_cache, rv->PC, &(*next));
@@ -1033,7 +1055,6 @@ void rv_step(void *arg)
          * the previous block.
          */
 
-	//prev = NULL;
         if (prev) {
             rv_insn_t *last_ir = prev->ir_tail;
             /* chain block */
