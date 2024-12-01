@@ -1,0 +1,69 @@
+1
+spawn build/rv32emu -k ./build/linux-image/Image -i ./build/linux-image/rootfs.cpio -b build/minimal.dtb
+[    0.000000] Linux version 6.1.116 (mirv32@node11) (riscv32-buildroot-linux-gnu-gcc.br_real (Buildroot 2024.05.2-dirty) 14.1.0, GNU ld (GNU Binutils) 2.42) #2 Tue Nov 12 02:13:19 CST 2024
+[    0.000000] Machine model: rv32emu
+[    0.000000] earlycon: ns16550 at MMIO 0xf4000000 (options '')
+[    0.000000] printk: bootconsole [ns16550] enabled
+[    0.000000] Zone ranges:
+[    0.000000]   Normal   [mem 0x0000000000000000-0x000000001fffffff]
+[    0.000000] Movable zone start for each node
+[    0.000000] Early memory node ranges
+[    0.000000]   node   0: [mem 0x0000000000000000-0x000000001fffffff]
+[    0.000000] Initmem setup node 0 [mem 0x0000000000000000-0x000000001fffffff]
+[    0.000000] SBI specification v0.3 detected
+[    0.000000] SBI implementation ID=0x999 Version=0x1
+[    0.000000] SBI TIME extension detected
+[    0.000000] SBI SRST extension detected
+[    0.000000] riscv: base ISA extensions aim
+[    0.000000] riscv: ELF capabilities aim
+[    0.000000] Built 1 zonelists, mobility grouping on.  Total pages: 130048
+[    0.000000] Kernel command line: earlycon console=ttyS0
+[    0.000000] Dentry cache hash table entries: 65536 (order: 6, 262144 bytes, linear)
+[    0.000000] Inode-cache hash table entries: 32768 (order: 5, 131072 bytes, linear)
+[    0.000000] mem auto-init: stack:off, heap alloc:off, heap free:off
+[    0.000000] Memory: 506860K/524288K available (3239K kernel code, 333K rwdata, 831K rodata, 160K init, 136K bss, 17428K reserved, 0K cma-reserved)
+[    0.000000] SLUB: HWalign=64, Order=0-3, MinObjects=0, CPUs=1, Nodes=1
+[    0.000000] NR_IRQS: 64, nr_irqs: 64, preallocated irqs: 0
+[    0.000000] riscv-intc: 32 local interrupts mapped
+[    0.000000] plic: interrupt-controller@0: mapped 31 interrupts with 1 handlers for 1 contexts.
+[    0.000000] riscv-timer: riscv_timer_init_dt: Registering clocksource cpuid [0] hartid [0]
+[    0.000000] clocksource: riscv_clocksource: mask: 0xffffffffffffffff max_cycles: 0xefdb196da, max_idle_ns: 440795204367 ns
+[    0.000000] sched_clock: 64 bits at 65MHz, resolution 15ns, wraps every 2199023255550ns
+[    0.000046] Console: colour dummy device 80x25
+[    0.000061] Calibrating delay loop (skipped), value calculated using timer frequency.. 130.00 BogoMIPS (lpj=260000)
+[    0.000079] pid_max: default: 32768 minimum: 301
+[    0.000125] Mount-cache hash table entries: 1024 (order: 0, 4096 bytes, linear)
+[    0.000138] Mountpoint-cache hash table entries: 1024 (order: 0, 4096 bytes, linear)
+[    0.000373] ASID allocator using 9 bits (512 entries)
+[    0.000462] devtmpfs: initialized
+[    0.000681] clocksource: jiffies: mask: 0xffffffff max_cycles: 0xffffffff, max_idle_ns: 7645041785100000 ns
+[    0.000697] futex hash table entries: 256 (order: -1, 3072 bytes, linear)
+[    0.000871] NET: Registered PF_NETLINK/PF_ROUTE protocol family
+[    0.001068] platform soc@F0000000: Fixed dependency cycle(s) with /soc@F0000000/interrupt-controller@0
+[    0.002190] clocksource: Switched to clocksource riscv_clocksource
+[    0.004392] NET: Registered PF_INET protocol family
+[    0.004442] IP idents hash table entries: 8192 (order: 4, 65536 bytes, linear)
+[    0.004726] tcp_listen_portaddr_hash hash table entries: 1024 (order: 0, 4096 bytes, linear)
+[    0.004741] Table-perturb hash table entries: 65536 (order: 6, 262144 bytes, linear)
+[    0.004756] TCP established hash table entries: 4096 (order: 2, 16384 bytes, linear)
+[    0.004774] TCP bind hash table entries: 4096 (order: 3, 32768 bytes, linear)
+[    0.004791] TCP: Hash tables configured (established 4096 bind 4096)
+[    0.004811] UDP hash table entries: 256 (order: 0, 4096 bytes, linear)
+[    0.004824] UDP-Lite hash table entries: 256 (order: 0, 4096 bytes, linear)
+[    0.004864] NET: Registered PF_UNIX/PF_LOCAL protocol family
+[    0.005050] Unpacking initramfs...
+[    0.010239] workingset: timestamp_bits=30 max_order=17 bucket_order=0
+[    0.055836] Freeing initrd memory: 8188K
+[    0.064771] Serial: 8250/16550 driver, 4 ports, IRQ sharing disabled
+[    0.065089] printk: console [ttyS0] disabled
+[    0.065107] f4000000.serial: ttyS0 at MMIO 0xf4000000 (irq = 1, base_baud = 312500) is a 16550
+[    0.065126] printk: console [ttyS0] enabled
+[    0.065126] printk: console [ttyS0] enabled
+[    0.065142] printk: bootconsole [ns16550] disabled
+[    0.065142] printk: bootconsole [ns16550] disabled
+[    0.065454] clk: Disabling unused clocks
+[    0.065529] Freeing unused kernel image (initmem) memory: 160K
+[    0.065541] Kernel memory protection not selected by kernel config.
+[    0.065554] Run /init as init process
+Starting syslogd: OK
+Assert failed: " expect "

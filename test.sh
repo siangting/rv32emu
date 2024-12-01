@@ -26,7 +26,7 @@ else # Linux
     TIMEOUT=90
 fi
 
-for i in {1..100}; do
+for i in {1..300}; do
 echo ${i}
 ASSERT expect <<DONE
 set timeout ${TIMEOUT}

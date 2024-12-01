@@ -381,6 +381,7 @@ static uint32_t peripheral_update_ctr = 64;
 
 bool use_chain = false;
 struct rv_insn *tgt;
+uint32_t jmp_offset;
 
 /* Interpreter-based execution path */
 #define RVOP(inst, code, asm)                                         \
@@ -402,6 +403,7 @@ struct rv_insn *tgt;
                 }                                                     \
                 insn_len = is_compressed(insn) ? 2 : 4;               \
                 if (tgt->opcode != test_ir->opcode) {                 \
+	            last_pc -= jmp_offset;\
                     block_map_clear(rv);                              \
                     rv->csr_cycle = cycle;                            \
                     rv->PC = PC;                                      \

@@ -174,6 +174,8 @@ RVOP(
                 goto end_op;
 #endif
             last_pc = PC;
+	    jmp_offset = ir->imm;
+
 #if RV32_HAS(SYSTEM)
             if (!rv->is_trapped)
 #endif
@@ -332,12 +334,11 @@ RVOP(
                     goto nextop;                                    \
             }, );                                                   \
         PC += 4;                                                    \
+	jmp_offset = 4;\
         if (!rv->is_trapped) {                                      \
+		last_pc = PC;\
             tgt = untaken;                                          \
             use_chain = true;                                       \
-            last_pc = PC;                                           \
-            int level;                                              \
-            pte_t *pte_ref;                                         \
             MUST_TAIL return untaken->impl(rv, untaken, cycle, PC); \
         } else {                                                    \
             goto end_op;                                            \
@@ -345,6 +346,7 @@ RVOP(
     }                                                               \
     is_branch_taken = true;                                         \
     PC += ir->imm;                                                  \
+    jmp_offset = ir->imm;\
     /* check instruction misaligned */                              \
     IIF(RV32_HAS(EXT_C))                                            \
     (, RV_EXC_MISALIGN_HANDLER(pc, INSN, false, 0););               \
@@ -360,11 +362,9 @@ RVOP(
                     goto end_op;                                    \
             }, );                                                   \
         if (!rv->is_trapped) {                                      \
+	    last_pc = PC;\
             tgt = taken;                                            \
             use_chain = true;                                       \
-            last_pc = PC;                                           \
-            int level;                                              \
-            pte_t *pte_ref;                                         \
             MUST_TAIL return taken->impl(rv, taken, cycle, PC);     \
         }                                                           \
     }                                                               \
