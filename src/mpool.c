@@ -131,6 +131,11 @@ void *mpool_calloc(mpool_t *mp)
     return ptr;
 }
 
+void mpool_memset(mpool_t *mp, char *ptr)
+{
+    memset(ptr, 0, mp->chunk_size);
+}
+
 void mpool_free(mpool_t *mp, void *target)
 {
     memchunk_t *ptr = (memchunk_t *) ((char *) target - sizeof(memchunk_t));

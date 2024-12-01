@@ -173,13 +173,13 @@ RVOP(
             if (cache_hot(rv->block_cache, PC))
                 goto end_op;
 #endif
-            last_pc = PC;
 	    jmp_offset = ir->imm;
 
 #if RV32_HAS(SYSTEM)
             if (!rv->is_trapped)
 #endif
             {
+                last_pc = PC;
 		tgt = taken;
 		use_chain = true;
                 MUST_TAIL

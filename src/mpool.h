@@ -22,6 +22,8 @@ struct mpool *mpool_create(size_t pool_size, size_t chunk_size);
  */
 void *mpool_alloc(struct mpool *mp);
 
+void mpool_memset(struct mpool *mp, char *ptr);
+
 /**
  * mpool_calloc - allocate a memory chunk from target memory pool and set it to
  * zero

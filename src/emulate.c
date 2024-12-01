@@ -389,11 +389,12 @@ uint32_t jmp_offset;
                           uint32_t PC)                                \
     {                                                                 \
         cycle++;                                                      \
-        if (use_chain) {                                              \
+	if (use_chain) {                                              \
             rv_insn_t *n = ir;                                        \
             rv_insn_t *test_ir = mpool_calloc(rv->block_ir_mp);       \
             uint32_t test_pc = PC;                                    \
             while (n) {                                               \
+		mpool_memset(rv->block_ir_mp, test_ir);\
                 uint32_t insn_len;                                    \
                 uint32_t insn = rv->io.mem_ifetch(rv, test_pc);       \
                 assert(insn);                                         \
@@ -402,8 +403,13 @@ uint32_t jmp_offset;
                     exit(1);                                          \
                 }                                                     \
                 insn_len = is_compressed(insn) ? 2 : 4;               \
-                if (tgt->opcode != test_ir->opcode) {                 \
-	            last_pc -= jmp_offset;\
+                if (tgt->opcode != test_ir->opcode ||\
+		tgt->rd != test_ir->rd ||\
+		tgt->rs1 != test_ir->rs1 ||\
+		tgt->rs2 != test_ir->rs2 ||\
+		tgt->imm != test_ir->imm\
+		) {                 \
+                   last_pc -= jmp_offset;\
                     block_map_clear(rv);                              \
                     rv->csr_cycle = cycle;                            \
                     rv->PC = PC;                                      \
@@ -590,6 +596,12 @@ FORCE_INLINE bool insn_is_unconditional_branch(uint8_t opcode)
     case rv_insn_jal:
     case rv_insn_jalr:
     case rv_insn_mret:
+    case rv_insn_csrrw:
+    case rv_insn_csrrs:
+    case rv_insn_csrrc:
+    case rv_insn_csrrwi:
+    case rv_insn_csrrsi:
+    case rv_insn_csrrci:
 #if RV32_HAS(SYSTEM)
     case rv_insn_sret:
 #endif
