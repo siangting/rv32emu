@@ -217,7 +217,24 @@ RVOP(
      * In addition, before relocate_enable_mmu, the block maybe retranslated,  \
      * thus the branch history lookup table should not be updated too.         \
      */                                                                        \
-    IIF(RV32_HAS(SYSTEM)(if (!rv->is_trapped && !reloc_enable_mmu), )) {}
+    IIF(RV32_HAS(SYSTEM)(if (!rv->is_trapped && !reloc_enable_mmu), )) {\
+for (int i = 0; i < HISTORY_SIZE; i++) {                               \
+            if (ir->branch_table->PC[i] == PC) {                               \
+                MUST_TAIL return ir->branch_table->target[i]->impl(            \
+                    rv, ir->branch_table->target[i], cycle, PC);               \
+            }                                                                  \
+        }                                                                      \
+        block_t *block = block_find(&rv->block_map, PC);                       \
+        if (block) {                                                           \
+            /* update branch history table */                                  \
+            ir->branch_table->PC[ir->branch_table->idx] = PC;                  \
+            ir->branch_table->target[ir->branch_table->idx] = block->ir_head;  \
+            ir->branch_table->idx =                                            \
+                (ir->branch_table->idx + 1) % HISTORY_SIZE;                    \
+            MUST_TAIL return block->ir_head->impl(rv, block->ir_head, cycle,   \
+                                                  PC);                         \
+        }                                                                      \
+    }
 #else
 #define LOOKUP_OR_UPDATE_BRANCH_HISTORY_TABLE()                               \
     block_t *block = cache_get(rv->block_cache, PC, true);                    \
