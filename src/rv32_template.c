@@ -173,12 +173,25 @@ RVOP(
             if (cache_hot(rv->block_cache, PC))
                 goto end_op;
 #endif
-            last_pc = PC;
 #if RV32_HAS(SYSTEM)
             if (!rv->is_trapped)
 #endif
-                MUST_TAIL
-                return taken->impl(rv, taken, cycle, PC);
+            {
+                /*
+                 * The last_pc should only be updated when not in the trap path.
+                 * Updating it during the trap path could lead to incorrect
+                 * block chaining in rv_step(). Specifically, an interrupt might
+                 * occur before locating the previous block with last_pc, and
+                 * since __trap_handler() uses the same RVOP, the last_pc could
+                 * be updated incorrectly during the trap path.
+                 *
+                 * This rule also applies to same statements elsewhere in this
+                 * file.
+                 */
+                last_pc = PC;
+
+                MUST_TAIL return taken->impl(rv, taken, cycle, PC);
+            }
         }
         goto end_op;
     },
@@ -329,48 +342,58 @@ RVOP(
     (type) x cond (type) y
 /* clang-format on */
 
-#define BRANCH_FUNC(type, cond)                                    \
-    IIF(RV32_HAS(EXT_C))(, const uint32_t pc = PC;);               \
-    if (BRANCH_COND(type, rv->X[ir->rs1], rv->X[ir->rs2], cond)) { \
-        is_branch_taken = false;                                   \
-        struct rv_insn *untaken = ir->branch_untaken;              \
-        if (!untaken)                                              \
-            goto nextop;                                           \
-        IIF(RV32_HAS(JIT))                                         \
-        (                                                          \
-            {                                                      \
-                cache_get(rv->block_cache, PC + 4, true);          \
-                if (!set_add(&pc_set, PC + 4))                     \
-                    has_loops = true;                              \
-                if (cache_hot(rv->block_cache, PC + 4))            \
-                    goto nextop;                                   \
-            }, );                                                  \
-        PC += 4;                                                   \
-        last_pc = PC;                                              \
-        IIF(RV32_HAS(SYSTEM)(if (!rv->is_trapped), ))              \
-        MUST_TAIL return untaken->impl(rv, untaken, cycle, PC);    \
-        goto end_op;                                               \
-    }                                                              \
-    is_branch_taken = true;                                        \
-    PC += ir->imm;                                                 \
-    /* check instruction misaligned */                             \
-    IIF(RV32_HAS(EXT_C))                                           \
-    (, RV_EXC_MISALIGN_HANDLER(pc, INSN, false, 0););              \
-    struct rv_insn *taken = ir->branch_taken;                      \
-    if (taken) {                                                   \
-        IIF(RV32_HAS(JIT))                                         \
-        (                                                          \
-            {                                                      \
-                cache_get(rv->block_cache, PC, true);              \
-                if (!set_add(&pc_set, PC))                         \
-                    has_loops = true;                              \
-                if (cache_hot(rv->block_cache, PC))                \
-                    goto end_op;                                   \
-            }, );                                                  \
-        last_pc = PC;                                              \
-        IIF(RV32_HAS(SYSTEM)(if (!rv->is_trapped), ))              \
-        MUST_TAIL return taken->impl(rv, taken, cycle, PC);        \
-    }                                                              \
+#define BRANCH_FUNC(type, cond)                                             \
+    IIF(RV32_HAS(EXT_C))(, const uint32_t pc = PC;);                        \
+    if (BRANCH_COND(type, rv->X[ir->rs1], rv->X[ir->rs2], cond)) {          \
+        is_branch_taken = false;                                            \
+        struct rv_insn *untaken = ir->branch_untaken;                       \
+        if (!untaken)                                                       \
+            goto nextop;                                                    \
+        IIF(RV32_HAS(JIT))                                                  \
+        (                                                                   \
+            {                                                               \
+                cache_get(rv->block_cache, PC + 4, true);                   \
+                if (!set_add(&pc_set, PC + 4))                              \
+                    has_loops = true;                                       \
+                if (cache_hot(rv->block_cache, PC + 4))                     \
+                    goto nextop;                                            \
+            }, );                                                           \
+        PC += 4;                                                            \
+        IIF(RV32_HAS(SYSTEM))                                               \
+        (                                                                   \
+            {                                                               \
+                if (!rv->is_trapped) {                                      \
+                    last_pc = PC;                                           \
+                    MUST_TAIL return untaken->impl(rv, untaken, cycle, PC); \
+                }                                                           \
+            }, );                                                           \
+        goto end_op;                                                        \
+    }                                                                       \
+    is_branch_taken = true;                                                 \
+    PC += ir->imm;                                                          \
+    /* check instruction misaligned */                                      \
+    IIF(RV32_HAS(EXT_C))                                                    \
+    (, RV_EXC_MISALIGN_HANDLER(pc, INSN, false, 0););                       \
+    struct rv_insn *taken = ir->branch_taken;                               \
+    if (taken) {                                                            \
+        IIF(RV32_HAS(JIT))                                                  \
+        (                                                                   \
+            {                                                               \
+                cache_get(rv->block_cache, PC, true);                       \
+                if (!set_add(&pc_set, PC))                                  \
+                    has_loops = true;                                       \
+                if (cache_hot(rv->block_cache, PC))                         \
+                    goto end_op;                                            \
+            }, );                                                           \
+        IIF(RV32_HAS(SYSTEM))                                               \
+        (                                                                   \
+            {                                                               \
+                if (!rv->is_trapped) {                                      \
+                    last_pc = PC;                                           \
+                    MUST_TAIL return taken->impl(rv, taken, cycle, PC);     \
+                }                                                           \
+            }, );                                                           \
+    }                                                                       \
     goto end_op;
 
 /* In RV32I and RV64I, if the branch is taken, set pc = pc + offset, where
@@ -2048,13 +2071,14 @@ RVOP(
             if (cache_hot(rv->block_cache, PC))
                 goto end_op;
 #endif
-            last_pc = PC;
 
 #if RV32_HAS(SYSTEM)
             if (!rv->is_trapped)
 #endif
-                MUST_TAIL
-                return taken->impl(rv, taken, cycle, PC);
+            {
+                last_pc = PC;
+                MUST_TAIL return taken->impl(rv, taken, cycle, PC);
+            }
         }
         goto end_op;
     },
@@ -2214,12 +2238,13 @@ RVOP(
             if (cache_hot(rv->block_cache, PC))
                 goto end_op;
 #endif
-            last_pc = PC;
 #if RV32_HAS(SYSTEM)
             if (!rv->is_trapped)
 #endif
-                MUST_TAIL
-                return taken->impl(rv, taken, cycle, PC);
+            {
+                last_pc = PC;
+                MUST_TAIL return taken->impl(rv, taken, cycle, PC);
+            }
         }
         goto end_op;
     },
@@ -2252,12 +2277,13 @@ RVOP(
                 goto nextop;
 #endif
             PC += 2;
-            last_pc = PC;
 #if RV32_HAS(SYSTEM)
             if (!rv->is_trapped)
 #endif
-                MUST_TAIL
-                return untaken->impl(rv, untaken, cycle, PC);
+            {
+                last_pc = PC;
+                MUST_TAIL return untaken->impl(rv, untaken, cycle, PC);
+            }
 
             goto end_op;
         }
@@ -2272,12 +2298,13 @@ RVOP(
             if (cache_hot(rv->block_cache, PC))
                 goto end_op;
 #endif
-            last_pc = PC;
 #if RV32_HAS(SYSTEM)
             if (!rv->is_trapped)
 #endif
-                MUST_TAIL
-                return taken->impl(rv, taken, cycle, PC);
+            {
+                last_pc = PC;
+                MUST_TAIL return taken->impl(rv, taken, cycle, PC);
+            }
         }
         goto end_op;
     },
@@ -2319,12 +2346,13 @@ RVOP(
                 goto nextop;
 #endif
             PC += 2;
-            last_pc = PC;
 #if RV32_HAS(SYSTEM)
             if (!rv->is_trapped)
 #endif
-                MUST_TAIL
-                return untaken->impl(rv, untaken, cycle, PC);
+            {
+                last_pc = PC;
+                MUST_TAIL return untaken->impl(rv, untaken, cycle, PC);
+            }
 
             goto end_op;
         }
@@ -2339,12 +2367,13 @@ RVOP(
             if (cache_hot(rv->block_cache, PC))
                 goto end_op;
 #endif
-            last_pc = PC;
 #if RV32_HAS(SYSTEM)
             if (!rv->is_trapped)
 #endif
-                MUST_TAIL
-                return taken->impl(rv, taken, cycle, PC);
+            {
+                last_pc = PC;
+                MUST_TAIL return taken->impl(rv, taken, cycle, PC);
+            }
         }
         goto end_op;
     },

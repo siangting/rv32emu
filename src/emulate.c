@@ -42,6 +42,7 @@ extern struct target_ops gdbstub_ops;
 #define IF_imm(i, v) (i->imm == v)
 
 #if RV32_HAS(SYSTEM)
+static bool need_clear_block_map = false;
 static uint32_t reloc_enable_mmu_jalr_addr;
 static bool reloc_enable_mmu = false;
 bool need_retranslate = false;
@@ -190,13 +191,18 @@ static uint32_t csr_csrrw(riscv_t *rv, uint32_t csr, uint32_t val)
 
     *c = val;
 
-#if !RV32_HAS(JIT)
+#if !RV32_HAS(JIT) && RV32_HAS(SYSTEM)
     /*
-     * guestOS's process might have same VA,
-     * so block_map cannot be reused
+     * guestOS's process might have same VA, so block map cannot be reused
+     *
+     * Instead of calling block_map_clear() directly here,
+     * a flag is set to indicate that the block map should be cleared,
+     * and the clearing occurs after the corresponding 'code' of RVOP
+     * has executed. This prevents the 'code' of RVOP from potentially
+     * accessing a NULL ir.
      */
     if (c == &rv->csr_satp)
-        block_map_clear(rv);
+        need_clear_block_map = true;
 #endif
 
     return out;
@@ -385,9 +391,15 @@ static uint32_t peripheral_update_ctr = 64;
         code;                                                         \
     nextop:                                                           \
         PC += __rv_insn_##inst##_len;                                 \
-        if (unlikely(RVOP_NO_NEXT(ir))) {                             \
+        IIF(RV32_HAS(SYSTEM))                                         \
+        (IIF(RV32_HAS(JIT))(                                          \
+             , if (unlikely(need_clear_block_map)) {                  \
+                 block_map_clear(rv);                                 \
+                 need_clear_block_map = false;                        \
+                 goto end_op;                                         \
+             }), );                                                   \
+        if (unlikely(RVOP_NO_NEXT(ir)))                               \
             goto end_op;                                              \
-        }                                                             \
         const rv_insn_t *next = ir->next;                             \
         MUST_TAIL return next->impl(rv, next, cycle, PC);             \
     end_op:                                                           \
@@ -983,23 +995,22 @@ void rv_step(void *arg)
         get_time_now(&tv);
         uint64_t t = (uint64_t) (tv.tv_sec * 1e6) + (uint32_t) tv.tv_usec;
 
-        if (t > attr->timer) {
+        if (t > attr->timer)
             rv->csr_sip |= RV_INT_STI;
-        } else {
+        else
             rv->csr_sip &= ~RV_INT_STI;
-        }
 
         if (rv_has_plic_trap(rv)) {
             uint32_t intr_applicable = rv->csr_sip & rv->csr_sie;
             uint8_t intr_idx = ilog2(intr_applicable);
             switch (intr_idx) {
-            case 1:
+            case (SUPERVISOR_SW_INTR & 0xf):
                 SET_CAUSE_AND_TVAL_THEN_TRAP(rv, SUPERVISOR_SW_INTR, 0);
                 break;
-            case 5:
+            case (SUPERVISOR_TIMER_INTR & 0xf):
                 SET_CAUSE_AND_TVAL_THEN_TRAP(rv, SUPERVISOR_TIMER_INTR, 0);
                 break;
-            case 9:
+            case (SUPERVISOR_EXTERNAL_INTR & 0xf):
                 SET_CAUSE_AND_TVAL_THEN_TRAP(rv, SUPERVISOR_EXTERNAL_INTR, 0);
                 break;
             default:

@@ -18,9 +18,9 @@ void plic_update_interrupts(plic_t *plic)
     plic->ip |= plic->active & ~plic->masked;
     plic->masked |= plic->active;
     /* Send interrupt to target */
-    if (plic->ip & plic->ie) {
+    if (plic->ip & plic->ie)
         rv->csr_sip |= SIP_SEIP;
-    } else
+    else
         rv->csr_sip &= ~SIP_SEIP;
 }
 
