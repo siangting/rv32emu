@@ -7,6 +7,8 @@
 #error "Do not manage to build this file unless you enable system support."
 #endif
 
+#include <assert.h>
+
 #include "devices/plic.h"
 #include "devices/uart.h"
 #include "riscv_private.h"
@@ -234,6 +236,7 @@ MMU_FAULT_CHECK_IMPL(write, pagefault_store)
     uint32_t ppn;                                             \
     uint32_t offset;                                          \
     do {                                                      \
+        assert(pte);                                          \
         ppn = *pte >> (RV_PG_SHIFT - 2) << RV_PG_SHIFT;       \
         offset = level == 1 ? addr & MASK((RV_PG_SHIFT + 10)) \
                             : addr & MASK(RV_PG_SHIFT);       \

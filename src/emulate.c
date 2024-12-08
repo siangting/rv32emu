@@ -396,7 +396,9 @@ static uint32_t peripheral_update_ctr = 64;
              , if (unlikely(need_clear_block_map)) {                  \
                  block_map_clear(rv);                                 \
                  need_clear_block_map = false;                        \
-                 goto end_op;                                         \
+                 rv->csr_cycle = cycle;                               \
+                 rv->PC = PC;                                         \
+                 return false;                                        \
              }), );                                                   \
         if (unlikely(RVOP_NO_NEXT(ir)))                               \
             goto end_op;                                              \
@@ -561,6 +563,7 @@ FORCE_INLINE bool insn_is_unconditional_branch(uint8_t opcode)
     case rv_insn_jal:
     case rv_insn_jalr:
     case rv_insn_mret:
+    case rv_insn_csrrw:
 #if RV32_HAS(SYSTEM)
     case rv_insn_sret:
 #endif
@@ -1138,6 +1141,8 @@ static void __trap_handler(riscv_t *rv)
         rv->compressed = is_compressed(insn);
         ir->impl(rv, ir, rv->csr_cycle, rv->PC);
     }
+
+    prev = NULL;
 }
 #endif /* RV32_HAS(SYSTEM) */
 
