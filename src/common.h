@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include <assert.h>
 #include <stdint.h>
 
 #include "feature.h"
@@ -25,7 +26,7 @@
 #endif
 #endif
 
-#define ARRAYS_SIZE(arr) (sizeof(arr) / sizeof(arr[0]))
+#define ARRAY_SIZE(arr) (sizeof(arr) / sizeof(arr[0]))
 
 #define MASK(n) (~((~0U << (n))))
 
@@ -33,16 +34,20 @@
 #include <intrin.h>
 static inline int rv_clz(uint32_t v)
 {
+    /* 0 is considered as undefined behavior */
+    assert(v);
+
     uint32_t leading_zero = 0;
-    if (_BitScanReverse(&leading_zero, v))
-        return 31 - leading_zero;
-    return 32; /* undefined behavior */
+    _BitScanReverse(&leading_zero, v);
+    return 31 - leading_zero;
 }
 #elif defined(__GNUC__) || defined(__clang__)
 static inline int rv_clz(uint32_t v)
 {
-    /*  https://gcc.gnu.org/onlinedocs/gcc/Other-Builtins.html */
-    /*  If x is 0, the result is undefined. */
+    /* https://gcc.gnu.org/onlinedocs/gcc/Other-Builtins.html */
+    /* 0 is considered as undefined behavior */
+    assert(v);
+
     return __builtin_clz(v);
 }
 #else /* generic implementation */
