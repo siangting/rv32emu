@@ -71,7 +71,7 @@ jobs:
     - name: MMU test
       run: |
             make -C tests/system/mmu/
-            make distclean && make ENABLE_ON_TEST=1 ENABLE_ELF_LOADER=1 ENABLE_SYSTEM=1 mmu-test -j$(nproc)
+            make distclean && make ENABLE_ELF_LOADER=1 ENABLE_SYSTEM=1 mmu-test -j$(nproc)
     - name: gdbstub test
       run: |
             make distclean && make ENABLE_GDBSTUB=1 gdbstub-test -j$(nproc)

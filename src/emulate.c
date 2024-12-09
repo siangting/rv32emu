@@ -370,7 +370,7 @@ static set_t pc_set;
 static bool has_loops = false;
 #endif
 
-#if RV32_HAS(SYSTEM)
+#if RV32_HAS(SYSTEM) && !RV32_HAS(ELF_LOADER)
 extern void emu_update_uart_interrupts(riscv_t *rv);
 static uint32_t peripheral_update_ctr = 64;
 #endif
@@ -953,7 +953,7 @@ static bool runtime_profiler(riscv_t *rv, block_t *block)
 }
 #endif
 
-#if RV32_HAS(SYSTEM)
+#if RV32_HAS(SYSTEM) && !RV32_HAS(ELF_LOADER)
 static bool rv_has_plic_trap(riscv_t *rv)
 {
     return ((rv->csr_sstatus & SSTATUS_SIE || !rv->priv_mode) &&

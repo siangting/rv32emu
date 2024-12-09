@@ -13,13 +13,14 @@
 #include "devices/uart.h"
 #include "riscv_private.h"
 
+#if RV32_HAS(SYSTEM) && !RV32_HAS(ELF_LOADER)
 void emu_update_uart_interrupts(riscv_t *rv)
 {
     vm_attr_t *attr = PRIV(rv);
     u8250_update_interrupts(attr->uart);
-    if (attr->uart->pending_intrs) {
+    if (attr->uart->pending_intrs)
         attr->plic->active |= IRQ_UART_BIT;
-    } else
+    else
         attr->plic->active &= ~IRQ_UART_BIT;
     plic_update_interrupts(attr->plic);
 }
@@ -101,7 +102,7 @@ enum SUPPORTED_MMIO {
             }                                               \
         }                                                   \
     } while (0)
-
+#endif
 
 static bool ppn_is_valid(riscv_t *rv, uint32_t ppn)
 {
@@ -306,7 +307,9 @@ static uint32_t mmu_read_w(riscv_t *rv, const uint32_t addr)
         if (addr < attr->mem->mem_size)
             return memory_read_w(addr);
 
+#if RV32_HAS(SYSTEM) && !RV32_HAS(ELF_LOADER)
         MMIO_READ();
+#endif
     }
 
     __UNREACHABLE;
@@ -345,7 +348,9 @@ static uint8_t mmu_read_b(riscv_t *rv, const uint32_t addr)
         if (addr < attr->mem->mem_size)
             return memory_read_b(addr);
 
+#if RV32_HAS(SYSTEM) && !RV32_HAS(ELF_LOADER)
         MMIO_READ();
+#endif
     }
 
     __UNREACHABLE;
@@ -371,7 +376,9 @@ static void mmu_write_w(riscv_t *rv, const uint32_t addr, const uint32_t val)
             return;
         }
 
+#if RV32_HAS(SYSTEM) && !RV32_HAS(ELF_LOADER)
         MMIO_WRITE();
+#endif
     }
 }
 
@@ -410,7 +417,9 @@ static void mmu_write_b(riscv_t *rv, const uint32_t addr, const uint8_t val)
             return;
         }
 
+#if RV32_HAS(SYSTEM) && !RV32_HAS(ELF_LOADER)
         MMIO_WRITE();
+#endif
     }
 }
 
