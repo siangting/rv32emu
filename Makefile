@@ -11,19 +11,12 @@ CFLAGS = -std=gnu99 -O2 -Wall -Wextra
 CFLAGS += -Wno-unused-label
 CFLAGS += -include src/common.h
 
-# In the system test suite, the executable is an ELF file.
+# In the system test suite, the executable is an ELF file (e.g., MMU).
 # However, the Linux kernel emulation includes the Image, DT, and
 # root filesystem (rootfs). Therefore, the test suite needs this
 # flag to load the ELF and differentiate it from the kernel emulation.
 ENABLE_ELF_LOADER ?= 0
 $(call set-feature, ELF_LOADER)
-
-# The MMU test suite relies on rv32emu's syscall function instead of
-# its syscall table, unlike the Linux kernel. Therefore, use the
-# ON_TEST feature macro to distinguish between the Linux kernel and MMU
-# test suite as the emulation target.
-ENABLE_ON_TEST ?= 0
-$(call set-feature, ON_TEST)
 
 # Enable system emulation
 ENABLE_SYSTEM ?= 0

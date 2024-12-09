@@ -4,6 +4,7 @@
  */
 
 #include <assert.h>
+#include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -224,10 +225,8 @@ static void *t2c_runloop(void *arg)
 static void map_file(char **ram_loc, const char *name)
 {
     int fd = open(name, O_RDONLY);
-    if (fd < 0) {
-        fprintf(stderr, "could not open %s\n", name);
-        exit(2);
-    }
+    if (fd < 0)
+        goto fail;
 
     /* get file size */
     struct stat st;
@@ -237,23 +236,16 @@ static void map_file(char **ram_loc, const char *name)
     /* remap to a memory region */
     *ram_loc = mmap(*ram_loc, st.st_size, PROT_READ | PROT_WRITE,
                     MAP_FIXED | MAP_PRIVATE, fd, 0);
-    if (*ram_loc == MAP_FAILED) {
-        perror("mmap");
-        close(fd);
-        exit(2);
-    }
+    if (*ram_loc == MAP_FAILED)
+        goto cleanup;
 #else
     /* calloc and load data to a memory region */
     *ram_loc = calloc(st.st_size, sizeof(uint8_t));
-    if (!*ram_loc) {
-        perror("calloc");
-        close(fd);
-        exit(2);
-    }
+    if (!*ram_loc)
+        goto cleanup;
     if (read(fd, *ram_loc, st.st_size) != st.st_size) {
-        perror("read");
-        close(fd);
-        exit(2);
+        free(*ram_loc);
+        goto cleanup;
     }
 #endif
 
@@ -262,8 +254,13 @@ static void map_file(char **ram_loc, const char *name)
      * the mapping.
      */
     *ram_loc += st.st_size;
+    return;
 
+cleanup:
     close(fd);
+fail:
+    fprintf(stderr, "Error: %s\n", strerror(errno));
+    exit(EXIT_FAILURE);
 }
 
 static void reset_keyboard_input()

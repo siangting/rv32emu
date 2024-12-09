@@ -72,8 +72,13 @@ enum SUPPORTED_MMIO {
             case 0x0:                                       \
             case 0x2: /* PLIC (0 - 0x3F) */                 \
                 MMIO_OP(MMIO_PLIC, MMIO_R);                 \
+                break;                                      \
             case 0x40: /* UART */                           \
                 MMIO_OP(MMIO_UART, MMIO_R);                 \
+                break;                                      \
+            default:                                        \
+                __UNREACHABLE;                              \
+                break;                                      \
             }                                               \
         }                                                   \
     } while (0)
@@ -86,8 +91,13 @@ enum SUPPORTED_MMIO {
             case 0x0:                                       \
             case 0x2: /* PLIC (0 - 0x3F) */                 \
                 MMIO_OP(MMIO_PLIC, MMIO_W);                 \
+                break;                                      \
             case 0x40: /* UART */                           \
                 MMIO_OP(MMIO_UART, MMIO_W);                 \
+                break;                                      \
+            default:                                        \
+                __UNREACHABLE;                              \
+                break;                                      \
             }                                               \
         }                                                   \
     } while (0)

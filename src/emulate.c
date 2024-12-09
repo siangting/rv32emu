@@ -88,13 +88,6 @@ static inline void update_time(riscv_t *rv)
     rv->csr_time[1] = t >> 32;
 }
 
-#if RV32_HAS(SYSTEM)
-static void get_time_now(struct timeval *tv)
-{
-    rv_gettimeofday(tv);
-}
-#endif
-
 #if RV32_HAS(Zicsr)
 /* get a pointer to a CSR */
 static uint32_t *csr_get_ptr(riscv_t *rv, uint32_t csr)
@@ -995,7 +988,7 @@ void rv_step(void *arg)
                 emu_update_uart_interrupts(rv);
         }
 
-        get_time_now(&tv);
+        rv_gettimeofday(&tv);
         uint64_t t = (uint64_t) (tv.tv_sec * 1e6) + (uint32_t) tv.tv_usec;
 
         if (t > attr->timer)
@@ -1238,7 +1231,7 @@ void ecall_handler(riscv_t *rv)
 {
     assert(rv);
 
-#if RV32_HAS(ON_TEST)
+#if RV32_HAS(ELF_LOADER)
     rv->PC += 4;
     syscall_handler(rv);
 #elif RV32_HAS(SYSTEM)
