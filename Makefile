@@ -82,7 +82,14 @@ src/softfloat/build/Linux-RISCV-GCC/Makefile:
 SOFTFLOAT_LIB := $(SOFTFLOAT_OUT)/softfloat.a
 $(SOFTFLOAT_LIB): src/softfloat/build/Linux-RISCV-GCC/Makefile
 	$(MAKE) -C $(dir $<) BUILD_DIR=$(SOFTFLOAT_OUT) CC=$(CC) AR=$(AR)
-$(OUT)/decode.o $(OUT)/riscv.o: $(SOFTFLOAT_LIB)
+ifeq ($(call has, SYSTEM), 1)
+DEV_OUT := $(OUT)/devices
+endif
+OBJS_NEED_SOFTFLOAT := $(OUT)/decode.o \
+                       $(OUT)/riscv.o \
+                       $(DEV_OUT)/uart.o \
+                       $(DEV_OUT)/plic.o
+$(OBJS_NEED_SOFTFLOAT): $(SOFTFLOAT_LIB)
 LDFLAGS += $(SOFTFLOAT_LIB)
 LDFLAGS += -lm
 endif
@@ -234,7 +241,7 @@ OBJS := \
 	main.o
 
 OBJS := $(addprefix $(OUT)/, $(OBJS))
-deps := $(OBJS:%.o=%.o.d)
+deps += $(OBJS:%.o=%.o.d) # mk/system.mk includes prior this line, so declare deps at there
 
 ifeq ($(call has, EXT_F), 1)
 $(OBJS): $(SOFTFLOAT_LIB)
