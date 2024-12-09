@@ -35,3 +35,6 @@ void u8250_write(u8250_state_t *uart, uint32_t addr, uint32_t value);
 
 /* create a UART instance */
 u8250_state_t *u8250_new();
+
+/* delete a UART instance */
+void u8250_delete(u8250_state_t *uart);

@@ -26,24 +26,20 @@ void plic_update_interrupts(plic_t *plic)
 
 uint32_t plic_read(plic_t *plic, const uint32_t addr)
 {
-    /* no priority support: source priority hardwired to 1 */
-    if (1 <= addr && addr <= 31)
-        return 0;
-
     uint32_t plic_read_val = 0;
 
     switch (addr) {
-    case INTR_PENDING:
+    case PLIC_INTR_PENDING:
         plic_read_val = plic->ip;
         break;
-    case INTR_ENABLE:
+    case PLIC_INTR_ENABLE:
         plic_read_val = plic->ie;
         break;
-    case INTR_PRIORITY:
+    case PLIC_INTR_PRIORITY_THRESHOLD:
         /* no priority support: target priority threshold hardwired to 0 */
         plic_read_val = 0;
         break;
-    case INTR_CLAIM_OR_COMPLETE:
+    case PLIC_INTR_CLAIM_OR_COMPLETE:
         /* claim */
         {
             uint32_t intr_candidate = plic->ip & plic->ie;
@@ -62,18 +58,14 @@ uint32_t plic_read(plic_t *plic, const uint32_t addr)
 
 void plic_write(plic_t *plic, const uint32_t addr, uint32_t value)
 {
-    /* no priority support: source priority hardwired to 1 */
-    if (1 <= addr && addr <= 31)
-        return;
-
     switch (addr) {
-    case INTR_ENABLE:
+    case PLIC_INTR_ENABLE:
         plic->ie = (value & ~1);
         break;
-    case INTR_PRIORITY:
+    case PLIC_INTR_PRIORITY_THRESHOLD:
         /* no priority support: target priority threshold hardwired to 0 */
         break;
-    case INTR_CLAIM_OR_COMPLETE:
+    case PLIC_INTR_CLAIM_OR_COMPLETE:
         /* completion */
         if (plic->ie & (1U << value))
             plic->masked &= ~(1U << value);
@@ -91,4 +83,9 @@ plic_t *plic_new()
     assert(plic);
 
     return plic;
+}
+
+void plic_delete(plic_t *plic)
+{
+    free(plic);
 }

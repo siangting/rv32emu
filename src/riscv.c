@@ -542,6 +542,10 @@ void rv_delete(riscv_t *rv)
     jit_state_exit(rv->jit_state);
     cache_free(rv->block_cache);
 #endif
+#if RV32_HAS(SYSTEM) && !RV32_HAS(ELF_LOADER)
+    u8250_delete(attr->uart);
+    plic_delete(attr->plic);
+#endif
     free(rv);
 }
 

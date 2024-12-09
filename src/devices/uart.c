@@ -153,3 +153,8 @@ u8250_state_t *u8250_new()
 
     return uart;
 }
+
+void u8250_delete(u8250_state_t *uart)
+{
+    free(uart);
+}

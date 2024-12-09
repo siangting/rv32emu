@@ -546,13 +546,13 @@ typedef struct {
 } vm_data_t;
 
 typedef struct {
-#if RV32_HAS(SYSTEM)
+#if RV32_HAS(SYSTEM) && !RV32_HAS(ELF_LOADER)
     /* uart object */
     u8250_state_t *uart;
 
     /* plic object */
     plic_t *plic;
-#endif /* RV32_HAS(SYSTEM) */
+#endif /* RV32_HAS(SYSTEM) && !RV32_HAS(ELF_LOADER) */
 
     /* vm memory object */
     memory_t *mem;

@@ -1119,7 +1119,7 @@ void rv_step(void *arg)
 #if RV32_HAS(SYSTEM)
 static void __trap_handler(riscv_t *rv)
 {
-    rv_insn_t *ir = mpool_alloc(rv->block_ir_mp);
+    rv_insn_t *ir = mpool_calloc(rv->block_ir_mp);
     assert(ir);
 
     /* set to false by sret implementation */

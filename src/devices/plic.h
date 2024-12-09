@@ -8,10 +8,10 @@
 #include <stdint.h>
 
 enum PLIC_REG {
-    INTR_PENDING = 0x400,
-    INTR_ENABLE = 0x800,
-    INTR_PRIORITY = 0x80000,
-    INTR_CLAIM_OR_COMPLETE = 0x80001,
+    PLIC_INTR_PENDING = 0x400,
+    PLIC_INTR_ENABLE = 0x800,
+    PLIC_INTR_PRIORITY_THRESHOLD = 0x80000,
+    PLIC_INTR_CLAIM_OR_COMPLETE = 0x80001,
 };
 
 /* PLIC */
@@ -36,3 +36,6 @@ void plic_write(plic_t *plic, const uint32_t addr, uint32_t value);
 
 /* create a PLIC instance */
 plic_t *plic_new();
+
+/* delete a PLIC instance */
+void plic_delete(plic_t *plic);
