@@ -345,7 +345,14 @@ RVOP(
 #define BRANCH_FUNC(type, cond)                                             \
     IIF(RV32_HAS(EXT_C))(, const uint32_t pc = PC;);                        \
     if (BRANCH_COND(type, rv->X[ir->rs1], rv->X[ir->rs2], cond)) {          \
-        is_branch_taken = false;                                            \
+        IIF(RV32_HAS(SYSTEM))                                               \
+        (                                                                   \
+            {                                                               \
+                if (!rv->is_trapped) {                                      \
+                    is_branch_taken = false;                                \
+                }                                                           \
+            },                                                              \
+            is_branch_taken = false;);                                      \
         struct rv_insn *untaken = ir->branch_untaken;                       \
         if (!untaken)                                                       \
             goto nextop;                                                    \
@@ -369,7 +376,14 @@ RVOP(
             }, );                                                           \
         goto end_op;                                                        \
     }                                                                       \
-    is_branch_taken = true;                                                 \
+    IIF(RV32_HAS(SYSTEM))                                                   \
+    (                                                                       \
+        {                                                                   \
+            if (!rv->is_trapped) {                                          \
+                is_branch_taken = true;                                     \
+            }                                                               \
+        },                                                                  \
+        is_branch_taken = true;);                                           \
     PC += ir->imm;                                                          \
     /* check instruction misaligned */                                      \
     IIF(RV32_HAS(EXT_C))                                                    \
