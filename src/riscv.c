@@ -318,6 +318,20 @@ riscv_t *rv_create(riscv_user_t rv_attr)
     /* reset */
     rv_reset(rv, 0U);
 
+    /*
+     * default standard stream.
+     * rv_remap_stdstream() can be called to overwrite them
+     *
+     */
+    attr->fd_map = map_init(int, FILE *, map_cmp_int);
+    rv_remap_stdstream(rv,
+                       (fd_stream_pair_t[]){
+                           {STDIN_FILENO, stdin},
+                           {STDOUT_FILENO, stdout},
+                           {STDERR_FILENO, stderr},
+                       },
+                       3);
+
 #if !RV32_HAS(SYSTEM) || (RV32_HAS(SYSTEM) && RV32_HAS(ELF_LOADER))
     elf_t *elf = elf_new();
     assert(elf && elf_open(elf, attr->data.user.elf_program));
@@ -407,23 +421,11 @@ riscv_t *rv_create(riscv_user_t rv_attr)
     /* setup UART */
     attr->uart = u8250_new();
     assert(attr->uart);
-    attr->uart->in_fd = 0;
-    attr->uart->out_fd = 1;
+    attr->uart->in_fd = attr->fd_stdin;
+    attr->uart->out_fd = attr->fd_stdout;
 
     capture_keyboard_input();
 #endif /* !RV32_HAS(SYSTEM) || (RV32_HAS(SYSTEM) && RV32_HAS(ELF_LOADER)) */
-
-    /* default standard stream.
-     * rv_remap_stdstream can be called to overwrite them
-     */
-    attr->fd_map = map_init(int, FILE *, map_cmp_int);
-    rv_remap_stdstream(rv,
-                       (fd_stream_pair_t[]){
-                           {STDIN_FILENO, stdin},
-                           {STDOUT_FILENO, stdout},
-                           {STDERR_FILENO, stderr},
-                       },
-                       3);
 
     /* create block and IRs memory pool */
     rv->block_mp = mpool_create(sizeof(block_t) << BLOCK_MAP_CAPACITY_BITS,

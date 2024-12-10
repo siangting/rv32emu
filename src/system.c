@@ -38,11 +38,11 @@ enum SUPPORTED_MMIO {
     switch(io){                                                                     \
         case MMIO_PLIC:                                                             \
             IIF(rw)( /* read */                                                     \
-                mmio_read_val = plic_read(PRIV(rv)->plic, (addr & 0x3FFFFFF) >> 2); \
+                mmio_read_val = plic_read(PRIV(rv)->plic, addr & 0x3FFFFFF); \
                 plic_update_interrupts(PRIV(rv)->plic);                             \
                 return mmio_read_val;                                               \
                 ,    /* write */                                                    \
-                plic_write(PRIV(rv)->plic, (addr & 0x3FFFFFF) >> 2, val);           \
+                plic_write(PRIV(rv)->plic, addr & 0x3FFFFFF, val);           \
                 plic_update_interrupts(PRIV(rv)->plic);                             \
                 return;                                                             \
             )                                                                       \

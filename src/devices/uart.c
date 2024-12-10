@@ -15,7 +15,7 @@
 
 /* Emulate 8250 (plain, without loopback mode support) */
 
-#define U8250_INT_THRE 1
+#define U8250_INTR_THRE 1
 
 void u8250_update_interrupts(u8250_state_t *uart)
 {
@@ -73,77 +73,68 @@ static uint8_t u8250_handle_in(u8250_state_t *uart)
     return value;
 }
 
-static uint8_t u8250_reg_read(u8250_state_t *uart, uint32_t addr)
+uint32_t u8250_read(u8250_state_t *uart, uint32_t addr)
 {
-    uint8_t ret;
+    uint8_t ret = 0;
+
     switch (addr) {
-    case 0:
+    case U8250_THR_RBR_DLL:
         if (uart->lcr & (1 << 7)) /* DLAB */
             return uart->dll;
         return u8250_handle_in(uart);
-    case 1:
+    case U8250_IER_DLH:
         if (uart->lcr & (1 << 7)) /* DLAB */
             return uart->dlh;
         return uart->ier;
-    case 2:
+    case U8250_IIR_FCR:
         ret = (uart->current_intr << 1) | (uart->pending_intrs ? 0 : 1);
-        if (uart->current_intr == U8250_INT_THRE)
+        if (uart->current_intr == U8250_INTR_THRE)
             uart->pending_intrs &= ~(1 << uart->current_intr);
         return ret;
-    case 3:
+    case U8250_LCR:
         return uart->lcr;
-    case 4:
+    case U8250_MCR:
         return uart->mcr;
         break;
-    case 5:
+    case U8250_LSR:
         /* LSR = no error, TX done & ready */
         return (0x60 | (uint8_t) uart->in_ready);
-    case 6:
+    case U8250_MSR:
         /* MSR = carrier detect, no ring, data ready, clear to send. */
         return 0xb0;
         /* no scratch register, so we should be detected as a plain 8250. */
     default:
-        return 0;
+        break;
     }
 
-    return 0;
+    return (uint32_t) (int8_t) ret;
 }
 
-static void u8250_reg_write(u8250_state_t *uart, uint32_t addr, uint8_t value)
+void u8250_write(u8250_state_t *uart, uint32_t addr, uint32_t value)
 {
     switch (addr) {
-    case 0:
+    case U8250_THR_RBR_DLL:
         if (uart->lcr & (1 << 7)) { /* DLAB */
             uart->dll = value;
             break;
         }
         u8250_handle_out(uart, value);
-        uart->pending_intrs |= 1 << U8250_INT_THRE;
+        uart->pending_intrs |= 1 << U8250_INTR_THRE;
         break;
-    case 1:
+    case U8250_IER_DLH:
         if (uart->lcr & (1 << 7)) { /* DLAB */
             uart->dlh = value;
             break;
         }
         uart->ier = value;
         break;
-    case 3:
+    case U8250_LCR:
         uart->lcr = value;
         break;
-    case 4:
+    case U8250_MCR:
         uart->mcr = value;
         break;
     }
-}
-
-uint32_t u8250_read(u8250_state_t *uart, uint32_t addr)
-{
-    return (uint32_t) (int8_t) u8250_reg_read(uart, addr);
-}
-
-void u8250_write(u8250_state_t *uart, uint32_t addr, uint32_t value)
-{
-    u8250_reg_write(uart, addr, value);
 }
 
 u8250_state_t *u8250_new()

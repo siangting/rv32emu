@@ -11,6 +11,17 @@
 #define IRQ_UART_SHIFT 1
 #define IRQ_UART_BIT (1 << IRQ_UART_SHIFT)
 
+enum UART_REG {
+    U8250_THR_RBR_DLL = 0,
+    U8250_IER_DLH,
+    U8250_IIR_FCR,
+    U8250_LCR,
+    U8250_MCR,
+    U8250_LSR,
+    U8250_MSR,
+    U8250_SR,
+};
+
 typedef struct {
     uint8_t dll, dlh;                    /* divisor (ignored) */
     uint8_t lcr;                         /* UART config */
