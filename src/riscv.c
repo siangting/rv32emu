@@ -300,12 +300,34 @@ static void capture_keyboard_input()
 }
 #endif
 
+/*
+ *
+ * atexit() registers void (*)(void) callbacks, so no parameters can be passed.
+ * Memory must be freed at runtime. block_map_clear() requires a RISC-V instance
+ * and runs in interpreter mode. Instead of modifying its signature, access the
+ * global RISC-V instance in main.c with external linkage.
+ *
+ */
+extern riscv_t *rv;
+static void rv_async_block_clear()
+{
+#if !RV32_HAS(JIT)
+    if (rv && rv->block_map.size)
+        block_map_clear(rv);
+#else  /* TODO: JIT mode */
+    return;
+#endif /* !RV32_HAS(JIT) */
+}
+
 riscv_t *rv_create(riscv_user_t rv_attr)
 {
     assert(rv_attr);
 
     riscv_t *rv = calloc(1, sizeof(riscv_t));
     assert(rv);
+
+    /* register cleaning callback for CTRL+a+x exit */
+    atexit(rv_async_block_clear);
 
     /* copy over the attr */
     rv->data = rv_attr;
