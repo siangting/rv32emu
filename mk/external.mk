@@ -103,16 +103,16 @@ TIMIDITY_DATA = $(OUT)/timidity
 TIMIDITY_DATA_SHA1 = cf6217a5d824b717ec4a07e15e6c129a4657ca25
 
 # Buildroot
-BUILDROOT_VERSION = 2024.05.2
+BUILDROOT_VERSION = 2024.08.3
 BUILDROOT_DATA = /tmp/buildroot
 BUILDROOT_DATA_URL = git clone https://github.com/buildroot/buildroot $(BUILDROOT_DATA) -b $(BUILDROOT_VERSION) --depth=1
-BUILDROOT_DATA_SHA1 = e6677825313cdb47f6e62e4dc09a22ae30699b69
+BUILDROOT_DATA_SHA1 = 80f878053f962a11a7eb8ac1d3d867ef70b69dd5
 
 # Linux kernel
 LINUX_VERSION = linux-6.1.y
 LINUX_DATA = /tmp/linux
 LINUX_DATA_URL = git clone https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git $(LINUX_DATA) -b $(LINUX_VERSION) --depth=1
-LINUX_DATA_SHA1 = 30e95c62e8264aba948bb52d75af57d435bb6b8e
+LINUX_DATA_SHA1 = 447d3918d7352a65941726f1025a24649d8a1abf
 
 define download-extract-verify
 $($(T)_DATA):
