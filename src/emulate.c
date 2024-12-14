@@ -77,15 +77,12 @@ static void __trap_handler(riscv_t *rv);
         return false;                                                 \
     }
 
-/* get current time in microseconds and update csr_time register */
+/* FIXME: use more precise methods for updating time, e.g., RTC */
+static uint64_t ctr = 0;
 static inline void update_time(riscv_t *rv)
 {
-    struct timeval tv;
-    rv_gettimeofday(&tv);
-
-    uint64_t t = (uint64_t) tv.tv_sec * 1e6 + (uint32_t) tv.tv_usec;
-    rv->csr_time[0] = t & 0xFFFFFFFF;
-    rv->csr_time[1] = t >> 32;
+    rv->csr_time[0] = ctr & 0xFFFFFFFF;
+    rv->csr_time[1] = ctr >> 32;
 }
 
 #if RV32_HAS(Zicsr)
@@ -380,6 +377,7 @@ static uint32_t peripheral_update_ctr = 64;
     static bool do_##inst(riscv_t *rv, rv_insn_t *ir, uint64_t cycle, \
                           uint32_t PC)                                \
     {                                                                 \
+        ctr++;                                                        \
         cycle++;                                                      \
         code;                                                         \
     nextop:                                                           \
@@ -977,9 +975,6 @@ void rv_step(void *arg)
 #if RV32_HAS(SYSTEM) && !RV32_HAS(ELF_LOADER)
         /* check for any interrupt after every block emulation */
 
-        /* now time */
-        struct timeval tv;
-
         if (peripheral_update_ctr-- == 0) {
             peripheral_update_ctr = 64;
 
@@ -988,10 +983,7 @@ void rv_step(void *arg)
                 emu_update_uart_interrupts(rv);
         }
 
-        rv_gettimeofday(&tv);
-        uint64_t t = (uint64_t) (tv.tv_sec * 1e6) + (uint32_t) tv.tv_usec;
-
-        if (t > attr->timer)
+        if (ctr > attr->timer)
             rv->csr_sip |= RV_INT_STI;
         else
             rv->csr_sip &= ~RV_INT_STI;

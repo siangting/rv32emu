@@ -17,7 +17,10 @@ function ASSERT {
 cleanup
 
 TIMEOUT=50
-EXE='build/rv32emu -k ./build/linux-image/Image -i ./build/linux-image/rootfs.cpio -b build/minimal.dtb'
+OPTS=" -k build/linux-image/Image "
+OPTS+=" -i build/linux-image/rootfs.cpio "
+OPTS+=" -b build/minimal.dtb "
+EXE="build/rv32emu ${OPTS}"
 
 ASSERT expect <<DONE
 set timeout ${TIMEOUT}

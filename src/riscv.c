@@ -488,7 +488,7 @@ static void rv_run_and_trace(riscv_t *rv)
 
     vm_attr_t *attr = PRIV(rv);
     assert(attr && attr->data.user.elf_program);
-    attr->cycle_per_step = 100000000;
+    attr->cycle_per_step = 1;
 
     const char *prog_name = attr->data.user.elf_program;
     elf_t *elf = elf_new();
@@ -527,6 +527,7 @@ void rv_run(riscv_t *rv)
            attr->data.user.elf_program
 #endif
     );
+    attr->cycle_per_step = 100000000;
 
     if (!(attr->run_flag & (RV_RUN_TRACE | RV_RUN_GDBSTUB))) {
 #ifdef __EMSCRIPTEN__
