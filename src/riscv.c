@@ -373,6 +373,7 @@ riscv_t *rv_create(riscv_user_t rv_attr)
         rv_log_fatal("elf_open failed");
         exit(EXIT_FAILURE);
     }
+    rv_log_info("%s ELF loaded", attr->data.user.elf_program);
 
     const struct Elf32_Sym *end;
     if ((end = elf_get_symbol(elf, "_end")))
@@ -426,10 +427,12 @@ riscv_t *rv_create(riscv_user_t rv_attr)
 
     char *ram_loc = (char *) attr->mem->mem_base;
     map_file(&ram_loc, attr->data.system.kernel);
+    rv_log_info("Kernel loaded");
 
     uint32_t dtb_addr = attr->mem->mem_size - (1 * 1024 * 1024);
     ram_loc = ((char *) attr->mem->mem_base) + dtb_addr;
     map_file(&ram_loc, attr->data.system.dtb);
+    rv_log_info("DTB loaded");
     /*
      * Load optional initrd image at last 8 MiB before the dtb region to
      * prevent kernel from overwritting it
@@ -438,6 +441,7 @@ riscv_t *rv_create(riscv_user_t rv_attr)
         uint32_t initrd_addr = dtb_addr - (8 * 1024 * 1024);
         ram_loc = ((char *) attr->mem->mem_base) + initrd_addr;
         map_file(&ram_loc, attr->data.system.initrd);
+        rv_log_info("Rootfs loaded");
     }
 
     /* this variable has external linkage to mmu_io defined in system.c */
