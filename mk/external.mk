@@ -24,7 +24,7 @@ endef
 # if URL contains git command, then use git
 define download
     $(eval _ :=  \
-	$(if $(findstring git,$(1)), \
+        $(if $(findstring git,$(1)), \
             ($(eval _ := $(shell $(1)))), \
             ($(eval _ := $(shell wget -q --show-progress --continue "$(strip $(1))"))) \
     ))
@@ -38,12 +38,12 @@ define extract
     $(eval COMPRESSED_IS_ZIP := $(filter $(COMPRESSED_SUFFIX),.zip))
     $(eval _ := \
         $(if $(findstring git,$(2)), \
-	    (# git is used, do nothing),
+            (# git is used, do nothing), \
             ($(eval _ :=  \
                 $(if $(COMPRESSED_IS_ZIP), \
                     ($(eval EXTRACTOR := unzip -d $(1) $(2))), \
                     ($(eval EXTRACTOR := tar -xf $(2) -C $(1))) \
-            ))
+            )) \
             $(eval _ := $(shell $(EXTRACTOR))))
         ) \
     )
