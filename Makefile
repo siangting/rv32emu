@@ -30,6 +30,14 @@ $(call set-feature, BLOCK_CHAINING)
 ENABLE_SYSTEM ?= 0
 $(call set-feature, SYSTEM)
 
+# Enable logging use color
+ENABLE_LOG_COLOR ?= 1
+$(call set-feature, LOG_COLOR)
+
+# Enable logging callback
+ENABLE_LOG_CALLBACK ?= 0
+$(call set-feature, LOG_CALLBACK)
+
 # Enable link-time optimization (LTO)
 ENABLE_LTO ?= 1
 ifeq ($(call has, LTO), 1)
@@ -235,6 +243,7 @@ OBJS := \
 	syscall.o \
 	emulate.o \
 	riscv.o \
+	log.o \
 	elf.o \
 	cache.o \
 	mpool.o \
