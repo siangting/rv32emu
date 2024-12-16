@@ -43,7 +43,7 @@ jobs:
           fi
           if [[ ${{ steps.test-linux-image-version-change.outputs.any_modified }} == true ]]; then
             # Determine if the changes are from Buildroot or the Linux version
-            echo -n $(git --no-pager diff HEAD^ HEAD | grep -e "+BUILDROOT_VERSION" -e "+LINUX_VERSION") >> linux-image-version-change
+            echo -n $(git --no-pager diff HEAD^ HEAD | grep -e "+BUILDROOT_VERSION" -e "+LINUX_VERSION" -e "+LINUX_DATA_SHA1") >> linux-image-version-change
             if [[ -s linux-image-version-change ]]; then
                 echo "has_changed_linux_image_version=true" >> $GITHUB_OUTPUT
             else
