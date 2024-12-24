@@ -417,7 +417,7 @@ riscv_t *rv_create(riscv_user_t rv_attr)
      * prevent kernel from overwritting it
      */
     if (attr->data.system.initrd) {
-        uint32_t initrd_addr = dtb_addr - (16 * 1024 * 1024);
+        uint32_t initrd_addr = dtb_addr - (64 * 1024 * 1024);
         ram_loc = ((char *) attr->mem->mem_base) + initrd_addr;
         map_file(&ram_loc, attr->data.system.initrd);
     }

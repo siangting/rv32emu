@@ -12,6 +12,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <unistd.h>
+#include <string.h>
 
 #include <SDL.h>
 #include <SDL_mixer.h>
@@ -36,6 +37,19 @@
 
 /* Max size of sound is around 18000 bytes */
 #define SFX_SAMPLE_SIZE 32768
+
+static uint32_t ppn;
+static uint32_t offset;
+
+extern uint32_t *mmu_walk(riscv_t *rv, const uint32_t addr, uint32_t *level);
+#define _get_ppn_and_offset(adr)                                  \
+    do {                                                      \
+        assert(pte);                                          \
+        ppn = *pte >> (RV_PG_SHIFT - 2) << RV_PG_SHIFT;       \
+        offset = level == 1 ? (adr) & MASK((RV_PG_SHIFT + 10)) \
+                            : (adr) & MASK(RV_PG_SHIFT);       \
+    } while (0)
+
 
 /* sound-related request type */
 enum {
@@ -162,10 +176,10 @@ static submission_t submission_pop(riscv_t *rv)
 {
     vm_attr_t *attr = PRIV(rv);
     submission_t submission;
-    //memory_read(
-    //    attr->mem, (void *) &submission,
-    //    submission_queue.base + submission_queue.start * sizeof(submission_t),
-    //    sizeof(submission_t));
+    memory_read(
+        attr->mem, (void *) &submission,
+        submission_queue.base + submission_queue.start * sizeof(submission_t),
+        sizeof(submission_t));
     ++submission_queue.start;
     submission_queue.start &= queues_capacity - 1;
     return submission;
@@ -181,9 +195,15 @@ static void event_push(riscv_t *rv, event_t event)
     event_queue.end &= queues_capacity - 1;
 
     uint32_t count;
-    //memory_read(attr->mem, (void *) &count, event_count, sizeof(uint32_t));
+    int level;
+    pte_t *pte = mmu_walk(rv, event_count, &level);
+    assert(pte);
+    _get_ppn_and_offset(event_count);
+    const uint32_t addr = ppn | offset;
+
+    memory_read(attr->mem, (void *) &count, addr, sizeof(uint32_t));
     count += 1;
-    //memory_write(attr->mem, event_count, (void *) &count, sizeof(uint32_t));
+    memory_write(attr->mem, addr, (void *) &count, sizeof(uint32_t));
 }
 
 static inline uint32_t round_pow2(uint32_t x)
@@ -295,16 +315,7 @@ static bool check_sdl(riscv_t *rv, int width, int height)
     return true;
 }
 
-extern uint32_t *mmu_walk(riscv_t *rv, const uint32_t addr, uint32_t *level);
-#define get_ppn_and_offset()                                  \
-    uint32_t ppn;                                             \
-    uint32_t offset;                                          \
-    do {                                                      \
-        assert(pte);                                          \
-        ppn = *pte >> (RV_PG_SHIFT - 2) << RV_PG_SHIFT;       \
-        offset = level == 1 ? screen & MASK((RV_PG_SHIFT + 10)) \
-                            : screen & MASK(RV_PG_SHIFT);       \
-    } while (0)
+static uint32_t tmp_buf[230400];
 
 void syscall_draw_frame(riscv_t *rv)
 {
@@ -314,35 +325,46 @@ void syscall_draw_frame(riscv_t *rv)
     const uint32_t screen = rv_get_reg(rv, rv_reg_a0);
     const int width = rv_get_reg(rv, rv_reg_a1);
     const int height = rv_get_reg(rv, rv_reg_a2);
+    const int is_init = rv_get_reg(rv, rv_reg_a3);
+    const int i = rv_get_reg(rv, rv_reg_a4);
+
+    if(is_init){
+	memset(tmp_buf, 0, sizeof(uint32_t[230400]));
+	return;
+    }
 
     if (!check_sdl(rv, width, height))
         return;
 
     /* read directly into video memory */
+    int level;
+    pte_t *pte = mmu_walk(rv, screen, &level);
+    if(!pte){
+	printf("rewalk\n");
+	SET_CAUSE_AND_TVAL_THEN_TRAP(rv, 13, screen);
+
+        pte = mmu_walk(rv, screen, &level);
+    }
+    assert((screen & (4096 - 1)) == 0); // aligned to PAGE_SIZE (4K)
+    _get_ppn_and_offset(screen);
+    const uint32_t addr = ppn | offset;
+
+//    assert(((uint32_t)attr->mem->mem_base + addr) >= (uint32_t)attr->mem->mem_base &&
+//	((uint32_t)attr->mem->mem_base + addr) <= ((uint32_t)attr->mem->mem_base + attr->mem->mem_size));
+
+    uint8_t *ptr = (uint8_t *) &tmp_buf[0];
+    //printf("screen: %x, addr: %x\n", screen, addr);
+    ptr += (i * 4096);
+    memory_read(attr->mem, ptr, addr, 4096);
+
+    if(i < 224)
+	    return;
+
     int pitch = 0;
     void *pixels_ptr;
     if (SDL_LockTexture(texture, NULL, &pixels_ptr, &pitch))
         exit(-1);
-    //memcpy(dst, mem->mem_base + addr, size);
-    uint32_t tmp = width * height * 4;
-    uint32_t offset = 0;
-    //while(tmp >= 4){
-    //        int level;
-    //        //uint32_t val = rv->io.mem_read_w(rv, screen + offset);
-    //        //memory_read(0, pixels_ptr + offset, &val, 4);
-    //        pte_t *pte = mmu_walk(rv, screen + offset, &level);
-    //        assert(pte);
-    //        get_ppn_and_offset();
-    //        printf("123\n");
-    //        //const uint32_t addr = ppn | offset;
-    //        //printf("screen: %x, addr: %x\n", screen, addr);
-    //        //printf("pte is found\n");
-    //        //memory_read(attr->mem, pixels_ptr, addr, width * height * 4);
-    //        offset += 4;
-    //        //memory_read(attr->mem, pixels_ptr, screen, width * height * 4);
-    //        tmp -= 4;
-    //}
-    //memory_read(attr->mem, pixels_ptr, screen, width * height * 4);
+    memcpy(pixels_ptr, tmp_buf, sizeof(tmp_buf));
     SDL_UnlockTexture(texture);
 
     int actual_width, actual_height;
@@ -354,52 +376,65 @@ void syscall_draw_frame(riscv_t *rv)
 
 void syscall_setup_queue(riscv_t *rv)
 {
-    /* setup_queue(base, capacity, event_count) */
-    //uint32_t base = rv_get_reg(rv, rv_reg_a0);
-    //queues_capacity = rv_get_reg(rv, rv_reg_a1);
-    //event_count = rv_get_reg(rv, rv_reg_a2);
+    /* the guestOS might exit and execute the SDL-based program
+     * thus clearing the queue is required to avoid using the
+     * access the old events
+     */
+    event_queue.base = event_queue.end = 0;
+    submission_queue.base = submission_queue.start = 0;
 
-    //event_queue.base = base;
-    //submission_queue.base = base + sizeof(event_t) * queues_capacity;
-    //queues_capacity = round_pow2(queues_capacity);
+    /* setup_queue(base, capacity, event_count) */
+    uint32_t base = rv_get_reg(rv, rv_reg_a0); // this base is virtual
+    queues_capacity = rv_get_reg(rv, rv_reg_a1);
+    event_count = rv_get_reg(rv, rv_reg_a2); // this event_count is virtual, renamed for readability
+
+    int level;
+    pte_t *pte = mmu_walk(rv, base, &level);
+    assert(pte);
+    _get_ppn_and_offset(base);
+    const uint32_t addr = ppn | offset;
+
+    event_queue.base = addr;
+    submission_queue.base = addr + sizeof(event_t) * queues_capacity;
+    queues_capacity = round_pow2(queues_capacity);
 }
 
 void syscall_submit_queue(riscv_t *rv)
 {
     /* submit_queue(count) */
-    //uint32_t count = rv_get_reg(rv, rv_reg_a0);
+    uint32_t count = rv_get_reg(rv, rv_reg_a0);
 
-    //if (!window) {
-    //    deferred_submissions += count;
-    //    return;
-    //}
+    if (!window) {
+        deferred_submissions += count;
+        return;
+    }
 
-    //if (deferred_submissions)
-    //    count = deferred_submissions;
+    if (deferred_submissions)
+        count = deferred_submissions;
 
-    //while (count--) {
-    //    submission_t submission = submission_pop(rv);
+    while (count--) {
+        submission_t submission = submission_pop(rv);
 
-    //    char *title;
-    //    switch (submission.type) {
-    //    case RELATIVE_MODE_SUBMISSION:
-    //        SDL_SetRelativeMouseMode(submission.mouse.enabled);
-    //        break;
-    //    case WINDOW_TITLE_SUBMISSION:
-    //        title = malloc(submission.title.size + 1);
-    //        if (unlikely(!title))
-    //            return;
+        char *title;
+        switch (submission.type) {
+        case RELATIVE_MODE_SUBMISSION:
+            SDL_SetRelativeMouseMode(submission.mouse.enabled);
+            break;
+        case WINDOW_TITLE_SUBMISSION:
+            title = malloc(submission.title.size + 1);
+            if (unlikely(!title))
+                return;
 
-    //        strcpy(title, "rv32emu");
-    //        //memory_read(PRIV(rv)->mem, (uint8_t *) title,
-    //        //            submission.title.title, submission.title.size);
-    //        //title[submission.title.size] = 0;
+	    strcpy(title, "rv32emu");
+            memory_read(PRIV(rv)->mem, (uint8_t *) title,
+                        submission.title.title, submission.title.size);
+            title[submission.title.size] = 0;
 
-    //        SDL_SetWindowTitle(window, title);
-    //        free(title);
-    //        break;
-    //    }
-    //}
+            SDL_SetWindowTitle(window, title);
+            free(title);
+            break;
+        }
+    }
 }
 
 /* Portions Copyright (C) 2021-2022 Steve Clark
@@ -749,24 +784,83 @@ static void play_sfx(riscv_t *rv)
     int volume = rv_get_reg(rv, rv_reg_a2);
 
     sfxinfo_t sfxinfo;
-    memory_read(attr->mem, (uint8_t *) &sfxinfo, sfxinfo_addr,
+    int level;
+    pte_t *pte = mmu_walk(rv, sfxinfo_addr, &level);
+    if(!pte){
+	printf("rewalk\n");
+	SET_CAUSE_AND_TVAL_THEN_TRAP(rv, 13, sfxinfo_addr);
+
+        pte = mmu_walk(rv, sfxinfo_addr, &level);
+    }
+    _get_ppn_and_offset(sfxinfo_addr);
+    const uint32_t addr = ppn | offset;
+
+    //printf("play_sfx pre\n");
+    memory_read(attr->mem, (uint8_t *) &sfxinfo, addr,
                 sizeof(sfxinfo_t));
+    ////printf("play_sfx post\n");
 
     /* The data and size in the application must be positioned in the first two
      * fields of the structure. This ensures emulator compatibility with
      * various applications when accessing different sfxinfo_t instances.
      */
-    uint32_t sfx_data_offset = *((uint32_t *) &sfxinfo);
-    uint32_t sfx_data_size = *(uint32_t *) ((uint32_t *) &sfxinfo + 1);
+    uint32_t sfx_data_offset = *((uint32_t *) ((uint8_t *)attr->mem->mem_base + addr));
+    uint32_t sfx_data_size = *(uint32_t *) ((uint32_t *) ((uint8_t *)attr->mem->mem_base + addr) + 1);
+    //printf("info_addr: %x, offset: %x, size: %d\n", addr, sfx_data_offset, sfx_data_size);
     uint8_t sfx_data[SFX_SAMPLE_SIZE];
-    memory_read(attr->mem, sfx_data, sfx_data_offset,
-                sizeof(uint8_t) * sfx_data_size);
+    uint32_t tgt = sfx_data_offset;
+    //printf("size: %d\n", sfx_data_size);
+    uint32_t tmp_size = sfx_data_size;
+    uint32_t off = 0;
+    uint32_t tmp_off = 0;
+    uint32_t data_size;
+
+    while(tmp_size > 0){
+        pte = mmu_walk(rv, tgt + off, &level);
+        if(!pte){
+            printf("sfx rewalk\n");
+            SET_CAUSE_AND_TVAL_THEN_TRAP(rv, 13, tgt + off);
+
+            pte = mmu_walk(rv, tgt + off, &level);
+        }
+        //assert(((tgt + off) & (4096 - 1)) == 0); // aligned to PAGE_SIZE (4K)
+        _get_ppn_and_offset(tgt + off);
+
+	uint8_t *ptr = &sfx_data[0];
+        uint32_t dataaddr = ppn | offset;
+	//printf("final_addr: %x\n", dataaddr);
+	data_size = tmp_size <= (4096 - offset) ? tmp_size : (4096 - offset);
+
+        memory_read(attr->mem, ptr + off, dataaddr,
+                    sizeof(uint8_t) * data_size);
+
+	tmp_size -= data_size;
+
+	//printf("sfx read, tmp_size: %d, offset: %d, data_size: %d\n", tmp_size, offset, data_size);
+	//exit(1);
+
+	off += data_size;
+    }
+    //printf("---------------------off: %d, total_size: %d\n", off, sfx_data_size);
+
+    //FILE *fp = fopen("guestsfx.data", "w");
+    //uint8_t *qtr = &sfx_data[0];
+    //for(int i = 0; i < sfx_data_size; i++, qtr++){
+    //    if(i != 0 && i % 10 == 0){
+    //            fprintf(fp, "%x \n", *qtr);
+    //            continue;
+    //    }
+    //    fprintf(fp, "%x ", *qtr);
+    //}
+    //fclose(fp);
+    //exit(1);
 
     sound_t sfx = {
         .data = sfx_data,
         .size = sfx_data_size,
         .volume = volume,
     };
+    //printf("here\n");
     pthread_create(&sfx_thread, NULL, sfx_handler, &sfx);
     /* FIXME: In web browser runtime, web workers in thread pool do not reap
      * after sfx_handler return, thus we have to join them. sfx_handler does not
@@ -785,17 +879,111 @@ static void play_music(riscv_t *rv)
     int looping = rv_get_reg(rv, rv_reg_a3);
 
     musicinfo_t musicinfo;
-    memory_read(attr->mem, (uint8_t *) &musicinfo, musicinfo_addr,
+    int level;
+    pte_t *pte = mmu_walk(rv, musicinfo_addr, &level);
+    if(!pte){
+	printf("music rewalk\n");
+	SET_CAUSE_AND_TVAL_THEN_TRAP(rv, 13, musicinfo_addr);
+
+        pte = mmu_walk(rv, musicinfo_addr, &level);
+    }
+    //_get_ppn_and_offset(musicinfo_addr);
+    //const uint32_t addr = ppn | offset;
+
+    _get_ppn_and_offset(musicinfo_addr);
+    const uint32_t addr = ppn | offset;
+
+    //printf("play_music pre\n");
+    memory_read(attr->mem, (uint8_t *) &musicinfo, addr,
                 sizeof(musicinfo_t));
+    ////printf("play_music post\n");
 
     /* The data and size in the application must be positioned in the first two
      * fields of the structure. This ensures emulator compatibility with
-     * various applications when accessing different sfxinfo_t instances.
+     * various applications when accessing different musicinfo_t instances.
      */
-    uint32_t music_data_offset = *((uint32_t *) &musicinfo);
-    uint32_t music_data_size = *(uint32_t *) ((uint32_t *) &musicinfo + 1);
+    uint32_t music_data_offset = *((uint32_t *) ((uint8_t *)attr->mem->mem_base + addr));
+    uint32_t music_data_size = *(uint32_t *) ((uint32_t *) ((uint8_t *)attr->mem->mem_base + addr) + 1);
+    //printf("info_addr: %x, offset: %x, size: %d\n", addr, music_data_offset, music_data_size);
     uint8_t music_data[MUSIC_MAX_SIZE];
-    memory_read(attr->mem, music_data, music_data_offset, music_data_size);
+    uint32_t tgt = music_data_offset;
+    //printf("size: %d\n", sfx_data_size);
+    uint32_t tmp_size = music_data_size;
+    uint32_t off = 0;
+    uint32_t tmp_off = 0;
+    uint32_t data_size;
+
+    while(tmp_size > 0){
+        pte = mmu_walk(rv, tgt + off, &level);
+        if(!pte){
+            printf("music tmp rewalk\n");
+            SET_CAUSE_AND_TVAL_THEN_TRAP(rv, 13, tgt + off);
+
+            pte = mmu_walk(rv, tgt + off, &level);
+        }
+        //assert(((tgt + off) & (4096 - 1)) == 0); // aligned to PAGE_SIZE (4K)
+        _get_ppn_and_offset(tgt + off);
+
+	uint8_t *ptr = &music_data[0];
+        uint32_t dataaddr = ppn | offset;
+	//printf("final_addr: %x\n", dataaddr);
+	data_size = tmp_size <= (4096 - offset) ? tmp_size : (4096 - offset);
+	//if(tmp_size <= (4096 - offset)){
+	//	printf("tmp_size:%d diff:%d\n", tmp_size, (4096 - offset));
+	//	printf("smaller\n");
+	//} else {
+	//	printf("bigger\n");
+	//}
+	//	printf("data_size after cmp: %d\n", data_size);
+
+        memory_read(attr->mem, ptr + off, dataaddr,
+                    sizeof(uint8_t) * data_size);
+
+	tmp_size -= data_size;
+
+	//printf("music read, tmp_size: %d, offset: %d, data_size: %d\n", tmp_size, offset, data_size);
+
+	off += data_size;
+    }
+    //printf("total size: %d\n", music_data_size);
+    //exit(1);
+
+    //if(music_data_size > 3000){
+    //FILE *fp = fopen("guestmusic.data", "w");
+    //uint8_t *qtr = &music_data[0];
+    //for(int i = 0; i < music_data_size; i++, qtr++){
+    //    if(i != 0 && i % 10 == 0){
+    //            fprintf(fp, "%x \n", *qtr);
+    //            continue;
+    //    }
+    //    fprintf(fp, "%x ", *qtr);
+    //}
+    //fclose(fp);
+    //exit(1);
+    //}
+
+	//printf("read, offset: %d, data_size: %d\n", offset, data_size);
+    //memory_read(attr->mem, (uint8_t *) &musicinfo, addr,
+    //            sizeof(musicinfo_t));
+
+    ///* The data and size in the application must be positioned in the first two
+    // * fields of the structure. This ensures emulator compatibility with
+    // * various applications when accessing different sfxinfo_t instances.
+    // */
+    //uint32_t music_data_offset = *((uint32_t *) ((uint8_t *)attr->mem->mem_base + addr));
+    //uint32_t music_data_size = *(uint32_t *) ((uint32_t *) ((uint8_t *)attr->mem->mem_base + addr) + 1);
+    //printf("music offset: %x, size: %d\n", music_data_offset, music_data_size);
+    //uint8_t music_data[MUSIC_MAX_SIZE];
+    //uint32_t tgt = music_data_offset;
+    //pte = mmu_walk(rv, tgt, &level);
+    //if(!pte){
+    //    printf("rewalk\n");
+    //    SET_CAUSE_AND_TVAL_THEN_TRAP(rv, 13, tgt);
+    //    pte = mmu_walk(rv, tgt, &level);
+    //}
+    //_get_ppn_and_offset(tgt);
+    //const uint32_t dataaddr = ppn | offset;
+    //memory_read(attr->mem, music_data, dataaddr, music_data_size);
 
     sound_t music = {
         .data = music_data,
