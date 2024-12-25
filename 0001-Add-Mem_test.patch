@@ -1,0 +1,94 @@
+From 1a2cecad4c5e11910ea8b754e1b50a73026d2152 Mon Sep 17 00:00:00 2001
+From: ChinYikMing <yikming2222@gmail.com>
+Date: Thu, 26 Dec 2024 04:01:52 +0800
+Subject: [PATCH] Add Mem_test
+
+---
+ package/Config.in             |  5 +++++
+ package/mem_test/Config.in    |  6 ++++++
+ package/mem_test/mem_test.mk  | 13 +++++++++++++
+ package/mem_test/src/Makefile |  2 ++
+ package/mem_test/src/main.c   | 15 +++++++++++++++
+ 5 files changed, 41 insertions(+)
+ create mode 100644 package/mem_test/Config.in
+ create mode 100644 package/mem_test/mem_test.mk
+ create mode 100644 package/mem_test/src/Makefile
+ create mode 100644 package/mem_test/src/main.c
+
+diff --git a/package/Config.in b/package/Config.in
+index c7b7c20f..978f6d1a 100644
+--- a/package/Config.in
++++ b/package/Config.in
+@@ -2901,4 +2901,9 @@ endmenu
+ menu "Quake Packages"
+     source "package/quake/Config.in"
+ endmenu
++
++menu "Mem_test Packages"
++    source "package/mem_test/Config.in"
++endmenu
++
+ endmenu
+diff --git a/package/mem_test/Config.in b/package/mem_test/Config.in
+new file mode 100644
+index 00000000..7dd36a87
+--- /dev/null
++++ b/package/mem_test/Config.in
+@@ -0,0 +1,6 @@
++config BR2_PACKAGE_MEM_TEST
++    bool "mem_test"
++    help
++        mem_test package.
++
++        https://mem_test.com
+diff --git a/package/mem_test/mem_test.mk b/package/mem_test/mem_test.mk
+new file mode 100644
+index 00000000..de2c3716
+--- /dev/null
++++ b/package/mem_test/mem_test.mk
+@@ -0,0 +1,13 @@
++MEM_TEST_VERSION =
++MEM_TEST_SITE = package/mem_test/src
++MEM_TEST_SITE_METHOD = local
++
++define MEM_TEST_BUILD_CMDS
++        $(MAKE) CC="$(TARGET_CC)" LD="$(TARGET_LD)" -C $(@D)/
++endef
++
++define MEM_TEST_INSTALL_TARGET_CMDS
++        $(INSTALL) -D -m 0755 $(@D)/mem_test $(TARGET_DIR)/usr/bin
++endef
++
++$(eval $(generic-package))
+diff --git a/package/mem_test/src/Makefile b/package/mem_test/src/Makefile
+new file mode 100644
+index 00000000..f603a178
+--- /dev/null
++++ b/package/mem_test/src/Makefile
+@@ -0,0 +1,2 @@
++all:
++	$(CC) main.c -o mem_test
+diff --git a/package/mem_test/src/main.c b/package/mem_test/src/main.c
+new file mode 100644
+index 00000000..c703c7d0
+--- /dev/null
++++ b/package/mem_test/src/main.c
+@@ -0,0 +1,15 @@
++#include <stdio.h>
++#include <stdlib.h>
++#include <assert.h>
++
++int main(){
++	char *ptr = malloc(1024);
++	assert(ptr);
++	*ptr = 'a';
++	printf("*ptr: %c\n", *ptr);
++
++	char *qtr = NULL;
++	*qtr = 'a';
++
++	return 0;
++}
+-- 
+2.25.1
+

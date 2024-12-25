@@ -1,0 +1,88 @@
+From 9e0cef0fd5470825da8830a8f27fabd6ce59cae5 Mon Sep 17 00:00:00 2001
+From: ChinYikMing <yikming2222@gmail.com>
+Date: Thu, 26 Dec 2024 03:59:53 +0800
+Subject: [PATCH] Add Doom
+
+---
+ package/Config.in               |  3 +++
+ package/doom/Config.in          |  6 ++++++
+ package/doom/doom.mk            | 14 ++++++++++++++
+ package/doom/old-src/Makefile   |  0
+ package/doom/old-src/doom_riscv |  1 +
+ package/doom/src/Makefile       |  0
+ package/doom/src/doom_riscv     |  1 +
+ 7 files changed, 25 insertions(+)
+ create mode 100644 package/doom/Config.in
+ create mode 100644 package/doom/doom.mk
+ create mode 100644 package/doom/old-src/Makefile
+ create mode 160000 package/doom/old-src/doom_riscv
+ create mode 100644 package/doom/src/Makefile
+ create mode 160000 package/doom/src/doom_riscv
+
+diff --git a/package/Config.in b/package/Config.in
+index 56158d5b..b8e949d0 100644
+--- a/package/Config.in
++++ b/package/Config.in
+@@ -2894,4 +2894,7 @@ menu "Text editors and viewers"
+ 	source "package/vim/Config.in"
+ endmenu
+ 
++menu "Doom Packages"
++    source "package/doom/Config.in"
++endmenu
+ endmenu
+diff --git a/package/doom/Config.in b/package/doom/Config.in
+new file mode 100644
+index 00000000..17af3a6a
+--- /dev/null
++++ b/package/doom/Config.in
+@@ -0,0 +1,6 @@
++config BR2_PACKAGE_DOOM
++    bool "doom"
++    help
++        doom package.
++
++        https://doom.com
+diff --git a/package/doom/doom.mk b/package/doom/doom.mk
+new file mode 100644
+index 00000000..7153820c
+--- /dev/null
++++ b/package/doom/doom.mk
+@@ -0,0 +1,14 @@
++DOOM_VERSION =
++DOOM_SITE = package/doom/src
++DOOM_SITE_METHOD = local
++
++define DOOM_BUILD_CMDS
++        $(MAKE) CC="$(TARGET_CC)" LD="$(TARGET_LD)" -C $(@D)/doom_riscv/src/riscv/
++endef
++
++define DOOM_INSTALL_TARGET_CMDS
++        $(INSTALL) -D -m 0755 $(@D)/doom_riscv/src/riscv/doom-riscv  $(TARGET_DIR)/usr/bin
++        cp $(@D)/doom_riscv/src/riscv/DOOM1.WAD  $(TARGET_DIR)/root
++endef
++
++$(eval $(generic-package))
+diff --git a/package/doom/old-src/Makefile b/package/doom/old-src/Makefile
+new file mode 100644
+index 00000000..e69de29b
+diff --git a/package/doom/old-src/doom_riscv b/package/doom/old-src/doom_riscv
+new file mode 160000
+index 00000000..0c11afa3
+--- /dev/null
++++ b/package/doom/old-src/doom_riscv
+@@ -0,0 +1 @@
++Subproject commit 0c11afa306806951b2c8a2e656ad991a5cdb352f
+diff --git a/package/doom/src/Makefile b/package/doom/src/Makefile
+new file mode 100644
+index 00000000..e69de29b
+diff --git a/package/doom/src/doom_riscv b/package/doom/src/doom_riscv
+new file mode 160000
+index 00000000..9b238b8e
+--- /dev/null
++++ b/package/doom/src/doom_riscv
+@@ -0,0 +1 @@
++Subproject commit 9b238b8ef747583e3968f23e0a28057446f79523
+-- 
+2.25.1
+
