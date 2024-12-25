@@ -315,8 +315,9 @@ static bool check_sdl(riscv_t *rv, int width, int height)
     return true;
 }
 
-static uint32_t tmp_buf[230400];
+static uint32_t tmp_buf[256*224];
 
+static uint64_t ctr = 0;
 void syscall_draw_frame(riscv_t *rv)
 {
     vm_attr_t *attr = PRIV(rv);
@@ -329,7 +330,7 @@ void syscall_draw_frame(riscv_t *rv)
     const int i = rv_get_reg(rv, rv_reg_a4);
 
     if(is_init){
-	memset(tmp_buf, 0, sizeof(uint32_t[230400]));
+	memset(tmp_buf, 0, sizeof(tmp_buf));
 	return;
     }
 
@@ -340,7 +341,7 @@ void syscall_draw_frame(riscv_t *rv)
     int level;
     pte_t *pte = mmu_walk(rv, screen, &level);
     if(!pte){
-	printf("rewalk\n");
+	//printf("rewalk\n");
 	SET_CAUSE_AND_TVAL_THEN_TRAP(rv, 13, screen);
 
         pte = mmu_walk(rv, screen, &level);
@@ -352,13 +353,17 @@ void syscall_draw_frame(riscv_t *rv)
 //    assert(((uint32_t)attr->mem->mem_base + addr) >= (uint32_t)attr->mem->mem_base &&
 //	((uint32_t)attr->mem->mem_base + addr) <= ((uint32_t)attr->mem->mem_base + attr->mem->mem_size));
 
+    int page_size = 4096;
     uint8_t *ptr = (uint8_t *) &tmp_buf[0];
     //printf("screen: %x, addr: %x\n", screen, addr);
     ptr += (i * 4096);
     memory_read(attr->mem, ptr, addr, 4096);
 
-    if(i < 224)
+    if(i < 55)
 	    return;
+
+    //ctr++;
+    //printf("draw here, ctr: %d\n", ctr);
 
     int pitch = 0;
     void *pixels_ptr;
@@ -376,7 +381,7 @@ void syscall_draw_frame(riscv_t *rv)
 
 void syscall_setup_queue(riscv_t *rv)
 {
-    /* the guestOS might exit and execute the SDL-based program
+    /* the guestOS might exit and execute the SDL-based program again
      * thus clearing the queue is required to avoid using the
      * access the old events
      */
@@ -787,7 +792,7 @@ static void play_sfx(riscv_t *rv)
     int level;
     pte_t *pte = mmu_walk(rv, sfxinfo_addr, &level);
     if(!pte){
-	printf("rewalk\n");
+	//printf("rewalk\n");
 	SET_CAUSE_AND_TVAL_THEN_TRAP(rv, 13, sfxinfo_addr);
 
         pte = mmu_walk(rv, sfxinfo_addr, &level);
