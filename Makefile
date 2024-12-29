@@ -48,7 +48,7 @@ CFLAGS += -flto
 endif
 endif
 ifeq ("$(CC_IS_GCC)", "1")
-CFLAGS += -flto=auto
+CFLAGS += -flto
 endif
 ifeq ("$(CC_IS_CLANG)", "1")
 CFLAGS += -flto=thin -fsplit-lto-unit
@@ -106,22 +106,6 @@ $(call set-feature, Zicsr)
 # Instruction-Fetch Fence
 ENABLE_Zifencei ?= 1
 $(call set-feature, Zifencei)
-
-# Zba Address generation instructions
-ENABLE_Zba ?= 1
-$(call set-feature, Zba)
-
-# Zbb Basic bit-manipulation
-ENABLE_Zbb ?= 1
-$(call set-feature, Zbb)
-
-# Zbc Carry-less multiplication
-ENABLE_Zbc ?= 1
-$(call set-feature, Zbc)
-
-# Zbs Single-bit instructions
-ENABLE_Zbs ?= 1
-$(call set-feature, Zbs)
 
 ENABLE_FULL4G ?= 0
 
@@ -238,8 +222,8 @@ $(OUT)/emulate.o: CFLAGS += -foptimize-sibling-calls -fomit-frame-pointer -fno-s
 
 include mk/external.mk
 include mk/artifact.mk
-include mk/wasm.mk
 include mk/system.mk
+include mk/wasm.mk
 
 all: config $(BUILD_DTB) $(BIN)
 

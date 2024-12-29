@@ -24,18 +24,10 @@ def setup_testlist(riscv_device):
     if 'C' in riscv_device:
         misa |= constants.misa_C
         ISA += 'C'
-    if 'Zba' in riscv_device:
-        ISA += '_Zba' if 'Z' in ISA else 'Zba'
-    if 'Zbb' in riscv_device:
-        ISA += '_Zbb' if 'Z' in ISA else 'Zbb'
-    if 'Zbc' in riscv_device:
-        ISA += '_Zbc' if 'Z' in ISA else 'Zbc'
-    if 'Zbs' in riscv_device:
-        ISA += '_Zbs' if 'Z' in ISA else 'Zbs'
     if 'Zicsr' in riscv_device:
-        ISA += '_Zicsr' if 'Z' in ISA else 'Zicsr'
+        ISA += 'Zicsr'
     if 'Zifencei' in riscv_device:
-        ISA += '_Zifencei' if 'Z' in ISA else 'Zifencei'
+        ISA += '_Zifencei' if 'Zicsr' in ISA else 'Zifencei'
     
     with open(ispec, 'r') as file:
         try:

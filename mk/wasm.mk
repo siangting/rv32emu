@@ -5,13 +5,13 @@ WEB_HTML_RESOURCES := $(ASSETS)/html
 WEB_JS_RESOURCES := $(ASSETS)/js
 EXPORTED_FUNCS := _main,_indirect_rv_halt
 DEMO_DIR := demo
-WEB_FILES := $(BIN).js \
+WEB_FILES := $(BIN).mjs \
 	     $(BIN).wasm \
 	     $(BIN).worker.js \
              $(OUT)/elf_list.js
 
 ifeq ("$(CC_IS_EMCC)", "1")
-BIN := $(BIN).js
+BIN := $(BIN).mjs
 
 # TCO
 CFLAGS += -mtail-call
@@ -26,25 +26,25 @@ endif
 # More build flags
 CFLAGS_emcc += -sINITIAL_MEMORY=2GB \
 	       -sALLOW_MEMORY_GROWTH \
-	       -s"EXPORTED_FUNCTIONS=$(EXPORTED_FUNCS)" \
 	       -sSTACK_SIZE=4MB \
-	       -sPTHREAD_POOL_SIZE=navigator.hardwareConcurrency \
-	       --embed-file build@/ \
-	       --embed-file build/riscv32@/riscv32 \
-	       --embed-file build/timidity@/etc/timidity \
+               -sPROXY_TO_PTHREAD \
+               --js-library=node_modules/xterm-pty/emscripten-pty.js \
+               -sPTHREAD_POOL_SIZE=navigator.hardwareConcurrency \
+	       --embed-file build/linux-image/Image@/Image \
+	       --embed-file build/linux-image/rootfs.cpio@/rootfs.cpio \
+	       --embed-file build/minimal.dtb@/minimal.dtb \
 	       -DMEM_SIZE=0x40000000 \
 	       -DCYCLE_PER_STEP=2000000 \
-	       --pre-js $(WEB_JS_RESOURCES)/pre.js \
-	       -O3 \
+               --pre-js $(WEB_JS_RESOURCES)/pre.js \
 	       -w
 
 $(OUT)/elf_list.js: tools/gen-elf-list-js.py
 	$(Q)tools/gen-elf-list-js.py > $@
 
 # used to download all dependencies of elf executable and bundle into single wasm
-deps_emcc += artifact $(OUT)/elf_list.js $(DOOM_DATA) $(QUAKE_DATA) $(TIMIDITY_DATA)
+deps_emcc += artifact $(OUT)/elf_list.js $(BUILD_DTB)
 
-# check browser version if supports TCO
+# check browser MAJOR version if supports TCO
 CHROME_MAJOR :=
 CHROME_MAJOR_VERSION_CHECK_CMD :=
 CHROME_SUPPORT_TCO_AT_MAJOR := 112
@@ -57,21 +57,10 @@ FIREFOX_SUPPORT_TCO_AT_MAJOR := 121
 FIREFOX_SUPPORT_TCO_INFO := Firefox supports TCO, you can use Firefox to request the wasm
 FIREFOX_NO_SUPPORT_TCO_WARNING := Firefox not found or Firefox must have at least version $(FIREFOX_SUPPORT_TCO_AT_MAJOR) in MAJOR to support TCO in wasm
 
-# Check WebAssembly section at https://webkit.org/blog/16301/webkit-features-in-safari-18-2/
-ifeq ($(UNAME_S),Darwin)
-SAFARI_MAJOR :=
-SAFARI_MINOR :=
-SAFARI_VERSION_CHECK_CMD :=
-SAFARI_SUPPORT_TCO_AT_MAJOR_MINOR := 18.2
-SAFARI_SUPPORT_TCO_INFO := Safari supports TCO, you can use Safari to request the wasm
-SAFARI_NO_SUPPORT_TCO_WARNING := Safari not found or Safari must have at least version $(SAFARI_SUPPORT_TCO_AT_MAJOR_MINOR) to support TCO in wasm
-endif
-
 # FIXME: for Windows
 ifeq ($(UNAME_S),Darwin)
     CHROME_MAJOR_VERSION_CHECK_CMD := "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --version | awk '{print $$3}' | cut -f1 -d.
     FIREFOX_MAJOR_VERSION_CHECK_CMD := /Applications/Firefox.app/Contents/MacOS/firefox --version | awk '{print $$3}' | cut -f1 -d.
-    SAFARI_VERSION_CHECK_CMD := mdls -name kMDItemVersion /Applications/Safari.app | sed 's/"//g' | awk '{print $$3}'
 else ifeq ($(UNAME_S),Linux)
     CHROME_MAJOR_VERSION_CHECK_CMD := google-chrome --version | awk '{print $$3}' | cut -f1 -d.
     FIREFOX_MAJOR_VERSION_CHECK_CMD := firefox -v | awk '{print $$3}' | cut -f1 -d.
@@ -93,22 +82,9 @@ else
     $(warning $(shell echo "$(YELLOW)$(FIREFOX_NO_SUPPORT_TCO_WARNING)$(NC)"))
 endif
 
-# Safari
-ifeq ($(UNAME_S),Darwin)
-# ignore PATCH because the expression with PATCH(e.g., double dots x.x.x) becomes invalid number for the following bc cmd
-SAFARI_VERSION := $(shell $(SAFARI_VERSION_CHECK_CMD))
-SAFARI_MAJOR := $(shell echo $(SAFARI_VERSION) | cut -f1 -d.)
-SAFARI_MINOR := $(shell echo $(SAFARI_VERSION) | cut -f2 -d.)
-ifeq ($(shell echo "$(SAFARI_MAJOR).$(SAFARI_MINOR)>=$(SAFARI_SUPPORT_TCO_AT_MAJOR_MINOR)" | bc), 1)
-    $(info $(shell echo "$(GREEN)$(SAFARI_SUPPORT_TCO_INFO)$(NC)"))
-else
-    $(warning $(shell echo "$(YELLOW)$(SAFARI_NO_SUPPORT_TCO_WARNING)$(NC)"))
-endif
-endif
-
 # used to serve wasm locally
 DEMO_IP := 127.0.0.1
-DEMO_PORT := 8000
+DEMO_PORT := 8001
 
 # check if demo root directory exists and create it if not
 check-demo-dir-exist:

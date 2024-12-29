@@ -454,9 +454,6 @@ void rv_debug(riscv_t *rv);
 /* step the RISC-V emulator */
 void rv_step(void *arg);
 
-/* step the RISC-V emulator for debug mode */
-void rv_step_debug(void *arg);
-
 /* set the program counter of a RISC-V emulator */
 bool rv_set_pc(riscv_t *rv, riscv_word_t pc);
 

@@ -24,7 +24,7 @@ a focus on efficiency and readability.
 
 Features:
 * Fast interpreter for executing the RV32 ISA
-* Comprehensive support for RV32I and M, A, F, C, Zba, Zbb, Zbc, Zbs extensions
+* Comprehensive support for RV32I and M, A, F, C extensions
 * Memory-efficient design
 * Built-in ELF loader
 * Implementation of commonly used newlib system calls
@@ -42,7 +42,7 @@ and [SDL2_Mixer library](https://wiki.libsdl.org/SDL2_mixer) installed.
 
 ### Experimental JIT compilation
 The tier-2 JIT compiler in `rv32emu` leverages LLVM for powerful optimization.
-Therefore, the target system must have [`LLVM`](https://llvm.org/) installed, with version 18 recommended.
+Therefore, the target system must have [`LLVM`](https://llvm.org/) installed, with version 17 recommended.
 If `LLVM` is not installed, only the tier-1 JIT compiler will be used for performance enhancement.
 
 * macOS: `brew install llvm@18`
@@ -120,10 +120,6 @@ The image containing all the necessary tools for development and testing can be 
 * `ENABLE_EXT_A`: Standard Extension for Atomic Instructions
 * `ENABLE_EXT_F`: Standard Extension for Single-Precision Floating Point Instructions
 * `ENABLE_EXT_C`: Standard Extension for Compressed Instructions (RV32C.D excluded)
-* `ENABLE_Zba`: Standard Extension for Address Generation Instructions
-* `ENABLE_Zbb`: Standard Extension for Basic Bit-Manipulation Instructions
-* `ENABLE_Zbc`: Standard Extension for Carry-Less Multiplication Instructions
-* `ENABLE_Zbs`: Standard Extension for Single-Bit Instructions
 * `ENABLE_Zicsr`: Control and Status Register (CSR)
 * `ENABLE_Zifencei`: Instruction-Fetch Fence
 * `ENABLE_GDBSTUB` : GDB remote debugging support
@@ -191,10 +187,6 @@ Current progress of this emulator in riscv-arch-test (RV32):
     - `A`: Standard Extension for Atomic Instructions
     - `F`: Standard Extension for Single-Precision Floating-Point
     - `C`: Standard Extension for Compressed Instruction
-    - `Zba`: Standard Extension for Address Generation Instructions
-    - `Zbb`: Standard Extension for Basic Bit-Manipulation
-    - `Zbc`: Standard Extension for Carry-Less Multiplication
-    - `Zbs`: Standard Extension for Single-Bit Instructions
     - `Zifencei`: Instruction-Fetch Fence
     - `privilege`: RISCV Privileged Specification
 
@@ -341,9 +333,9 @@ $ tools/rv_profiler [--start-address|--stop-address|--graph-ir] [test_program]
 Thus, the target system should have the Emscripten version 3.1.51 installed.
 
 Moreover, `rv32emu` leverages the tail call optimization (TCO) and we have tested the WebAssembly
-execution in Chrome with at least MAJOR 112, Firefox with at least MAJOR 121 and Safari with at least version 18.2
-since they supports tail call feature. Please check your browser version and update if necessary, or install a compatible
-browser before proceeding.
+execution in Chrome with at least MAJOR 112 and Firefox with at least MAJOR 121 since they supports
+tail call feature. Thus, please check and update your browsers if necessary or install the suitable browsers
+before going further.
 
 Source your Emscripten SDK environment before make. For macOS and Linux user:
 ```shell
