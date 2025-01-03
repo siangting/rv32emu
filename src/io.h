@@ -32,18 +32,6 @@ uint16_t memory_read_s(uint32_t addr);
 /* read a byte from memory */
 uint8_t memory_read_b(uint32_t addr);
 
-/* read a length of data from memory */
-void memory_read(const memory_t *m, uint8_t *dst, uint32_t addr, uint32_t size);
-
-/* write a length of data to memory */
-static inline void memory_write(memory_t *m,
-                                uint32_t addr,
-                                const uint8_t *src,
-                                uint32_t size)
-{
-    memcpy(m->mem_base + addr, src, size);
-}
-
 /* write a word to memory */
 void memory_write_w(uint32_t addr, const uint8_t *src);
 
@@ -53,8 +41,26 @@ void memory_write_s(uint32_t addr, const uint8_t *src);
 /* write a byte to memory */
 void memory_write_b(uint32_t addr, const uint8_t *src);
 
-/* write a length of certain value to memory */
-static inline void memory_fill(memory_t *m,
+/* read a length of data from memory + addr */
+static inline void memory_read(const memory_t *m,
+                               uint8_t *dst,
+                               uint32_t addr,
+                               uint32_t size)
+{
+    memcpy(dst, m->mem_base + addr, size);
+}
+
+/* write a length of data to memory + addr */
+static inline void memory_write(const memory_t *m,
+                                uint32_t addr,
+                                const uint8_t *src,
+                                uint32_t size)
+{
+    memcpy(m->mem_base + addr, src, size);
+}
+
+/* write a length of certain value to memory + addr */
+static inline void memory_fill(const memory_t *m,
                                uint32_t addr,
                                uint32_t size,
                                uint8_t val)

@@ -53,14 +53,6 @@ void memory_delete(memory_t *mem)
     free(mem);
 }
 
-void memory_read(const memory_t *mem,
-                 uint8_t *dst,
-                 uint32_t addr,
-                 uint32_t size)
-{
-    memcpy(dst, mem->mem_base + addr, size);
-}
-
 uint32_t memory_ifetch(uint32_t addr)
 {
     return *(const uint32_t *) (data_memory_base + addr);

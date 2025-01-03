@@ -404,6 +404,34 @@ typedef void (*riscv_mem_write_s)(riscv_t *rv,
 typedef void (*riscv_mem_write_b)(riscv_t *rv,
                                   riscv_word_t addr,
                                   riscv_byte_t data);
+/* memory offset handlers */
+typedef void (*riscv_mem_read)(riscv_t *rv,
+                               riscv_byte_t *dst,
+                               riscv_word_t addr,
+                               riscv_word_t size);
+typedef void (*riscv_mem_write)(riscv_t *rv,
+                                riscv_word_t addr,
+                                riscv_byte_t *src,
+                                riscv_word_t size);
+typedef void (*riscv_mem_fill)(riscv_t *rv,
+                               riscv_word_t addr,
+                               riscv_word_t size,
+                               riscv_byte_t data);
+
+#if RV32_HAS(SYSTEM)
+/*
+ * VA2PA handler
+ * The MMU walkers and fault checkers are defined in system.c
+ * Thus, exporting this handler through function pointer
+ * preserves the encapsulation of MMU translation.
+ *
+ * ifetch do not leverage this translation because basic block
+ * might be retranslated and the corresponding PTE is NULL.
+ */
+typedef riscv_word_t (*riscv_mem_trans)(riscv_t *rv,
+                                        riscv_word_t vaddr,
+                                        bool rw);
+#endif
 
 /* system instruction handlers */
 typedef void (*riscv_on_ecall)(riscv_t *rv);
@@ -424,7 +452,14 @@ typedef struct {
     riscv_mem_write_s mem_write_s;
     riscv_mem_write_b mem_write_b;
 
-    /* TODO: add peripheral I/O interfaces */
+    /* memory offset helper interface */
+    riscv_mem_read mem_read;
+    riscv_mem_write mem_write;
+    riscv_mem_fill mem_fill;
+
+#if RV32_HAS(SYSTEM)
+    riscv_mem_trans mem_trans;
+#endif
 
     /* system */
     riscv_on_ecall on_ecall;

@@ -105,7 +105,7 @@ static void syscall_write(riscv_t *rv)
     FILE *handle = map_iter_value(&it, FILE *);
 
     while (count > PREALLOC_SIZE) {
-        memory_read(attr->mem, tmp, buffer + total_write, PREALLOC_SIZE);
+        rv->io.mem_read(rv, tmp, buffer + total_write, PREALLOC_SIZE);
         /* write out the data */
         size_t written = fwrite(tmp, 1, PREALLOC_SIZE, handle);
         if (written != PREALLOC_SIZE && ferror(handle))
@@ -114,7 +114,7 @@ static void syscall_write(riscv_t *rv)
         count -= PREALLOC_SIZE;
     }
 
-    memory_read(attr->mem, tmp, buffer + total_write, count);
+    rv->io.mem_read(rv, tmp, buffer + total_write, count);
     /* write out the data */
     size_t written = fwrite(tmp, 1, count, handle);
     if (written != count && ferror(handle))
@@ -172,8 +172,8 @@ static void syscall_gettimeofday(riscv_t *rv)
     if (tv) {
         struct timeval tv_s;
         rv_gettimeofday(&tv_s);
-        memory_write_w(tv + 0, (const uint8_t *) &tv_s.tv_sec);
-        memory_write_w(tv + 8, (const uint8_t *) &tv_s.tv_usec);
+        rv->io.mem_write_w(rv, tv + 0, tv_s.tv_sec);
+        rv->io.mem_write_w(rv, tv + 0, tv_s.tv_usec);
     }
 
     if (tz) {
@@ -204,8 +204,8 @@ static void syscall_clock_gettime(riscv_t *rv)
     if (tp) {
         struct timespec tp_s;
         rv_clock_gettime(&tp_s);
-        memory_write_w(tp + 0, (const uint8_t *) &tp_s.tv_sec);
-        memory_write_w(tp + 8, (const uint8_t *) &tp_s.tv_nsec);
+        rv->io.mem_write_w(rv, tp + 0, tp_s.tv_sec);
+        rv->io.mem_write_w(rv, tp + 8, tp_s.tv_nsec);
     }
 
     /* success */
@@ -303,14 +303,14 @@ static void syscall_read(riscv_t *rv)
 
     while (count > PREALLOC_SIZE) {
         size_t r = fread(tmp, 1, PREALLOC_SIZE, handle);
-        memory_write(attr->mem, buf + total_read, tmp, r);
+        rv->io.mem_write(rv, buf + total_read, tmp, r);
         count -= r;
         total_read += r;
         if (r != PREALLOC_SIZE)
             break;
     }
     size_t r = fread(tmp, 1, count, handle);
-    memory_write(attr->mem, buf + total_read, tmp, r);
+    rv->io.mem_write(rv, buf + total_read, tmp, r);
     total_read += r;
     if (total_read != rv_get_reg(rv, rv_reg_a2) && ferror(handle)) {
         /* error */
@@ -340,7 +340,7 @@ static void syscall_open(riscv_t *rv)
     char *name_str = malloc(name_len + 1);
     assert(name_str);
     name_str[name_len] = '\0';
-    memory_read(attr->mem, (uint8_t *) name_str, name, name_len);
+    rv->io.mem_read(rv, (uint8_t *) name_str, name, name_len);
 
     /* open the file */
     const char *mode_str = get_mode_str(flags, mode);
@@ -445,6 +445,22 @@ static void syscall_sbi_base(riscv_t *rv)
 
 static void syscall_sbi_rst(riscv_t *rv)
 {
+    const riscv_word_t fid = rv_get_reg(rv, rv_reg_a6);
+    const riscv_word_t a0 = rv_get_reg(rv, rv_reg_a0);
+    const riscv_word_t a1 = rv_get_reg(rv, rv_reg_a1);
+
+    switch (fid) {
+    case SBI_RST_SYSTEM_RESET:
+        fprintf(stderr, "system reset: type=%u, reason=%u\n", a0, a1);
+        rv_halt(rv);
+        rv_set_reg(rv, rv_reg_a0, SBI_SUCCESS);
+        rv_set_reg(rv, rv_reg_a1, 0);
+        break;
+    default:
+        rv_set_reg(rv, rv_reg_a0, SBI_ERR_NOT_SUPPORTED);
+        rv_set_reg(rv, rv_reg_a1, 0);
+        break;
+    }
 }
 #endif /* SYSTEM */
 

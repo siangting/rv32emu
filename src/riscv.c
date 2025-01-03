@@ -197,6 +197,30 @@ IO_HANDLER_IMPL(byte, write_b, W)
 
 #undef R
 #undef W
+
+static inline void memory__read(riscv_t *rv,
+                                uint8_t *dst,
+                                uint32_t addr,
+                                uint32_t size)
+{
+    memory_read(PRIV(rv)->mem, dst, addr, size);
+}
+
+static inline void memory__write(riscv_t *rv,
+                                 uint32_t addr,
+                                 uint8_t *src,
+                                 uint32_t size)
+{
+    memory_write(PRIV(rv)->mem, addr, src, size);
+}
+
+static inline void memory__fill(riscv_t *rv,
+                                uint32_t addr,
+                                uint32_t size,
+                                uint8_t val)
+{
+    memory_fill(PRIV(rv)->mem, addr, val, size);
+}
 #endif
 
 #if RV32_HAS(T2C)
@@ -236,10 +260,8 @@ static void map_file(char **ram_loc, const char *name)
     /* remap to a memory region */
     *ram_loc = mmap(*ram_loc, st.st_size, PROT_READ | PROT_WRITE,
                     MAP_FIXED | MAP_PRIVATE, fd, 0);
-    if (*ram_loc == MAP_FAILED){
-    	printf("here, size: %x, name: %s\n", st.st_size, name);
+    if (*ram_loc == MAP_FAILED)
         goto cleanup;
-    }
 #else
     if (read(fd, *ram_loc, st.st_size) != st.st_size) {
         free(*ram_loc);
@@ -335,6 +357,40 @@ riscv_t *rv_create(riscv_user_t rv_attr)
     assert(attr->mem);
     assert(!(((uintptr_t) attr->mem) & 0b11));
 
+#if RV32_HAS(SYSTEM)
+    /* this variable has external linkage to mmu_io defined in system.c */
+    extern riscv_io_t mmu_io;
+    /* install the MMU I/O handlers */
+    memcpy(&rv->io, &mmu_io, sizeof(riscv_io_t));
+#else
+    /* install the I/O handlers */
+    const riscv_io_t io = {
+        /* memory read interface */
+        .mem_ifetch = MEMIO(ifetch),
+        .mem_read_w = MEMIO(read_w),
+        .mem_read_s = MEMIO(read_s),
+        .mem_read_b = MEMIO(read_b),
+
+        /* memory write interface */
+        .mem_write_w = MEMIO(write_w),
+        .mem_write_s = MEMIO(write_s),
+        .mem_write_b = MEMIO(write_b),
+
+        /* memory offset helper interface */
+        .mem_read = memory__read,
+        .mem_write = memory__write,
+        .mem_fill = memory__fill,
+
+        /* system services or essential routines */
+        .on_ecall = ecall_handler,
+        .on_ebreak = ebreak_handler,
+        .on_memcpy = memcpy_handler,
+        .on_memset = memset_handler,
+        .on_trap = trap_handler,
+    };
+    memcpy(&rv->io, &io, sizeof(riscv_io_t));
+#endif /* RV32_HAS(SYSTEM) */
+
     /* reset */
     rv_reset(rv, 0U);
 
@@ -367,37 +423,6 @@ riscv_t *rv_create(riscv_user_t rv_attr)
     assert(rv_set_pc(rv, hdr->e_entry));
 
     elf_delete(elf);
-
-/* combine with USE_ELF for system test suite */
-#if RV32_HAS(SYSTEM)
-    /* this variable has external linkage to mmu_io defined in system.c */
-    extern riscv_io_t mmu_io;
-    /* install the MMU I/O handlers */
-    memcpy(&rv->io, &mmu_io, sizeof(riscv_io_t));
-#else
-    /* install the I/O handlers */
-    const riscv_io_t io = {
-        /* memory read interface */
-        .mem_ifetch = MEMIO(ifetch),
-        .mem_read_w = MEMIO(read_w),
-        .mem_read_s = MEMIO(read_s),
-        .mem_read_b = MEMIO(read_b),
-
-        /* memory write interface */
-        .mem_write_w = MEMIO(write_w),
-        .mem_write_s = MEMIO(write_s),
-        .mem_write_b = MEMIO(write_b),
-
-        /* system services or essential routines */
-        .on_ecall = ecall_handler,
-        .on_ebreak = ebreak_handler,
-        .on_memcpy = memcpy_handler,
-        .on_memset = memset_handler,
-        .on_trap = trap_handler,
-    };
-    memcpy(&rv->io, &io, sizeof(riscv_io_t));
-#endif /* RV32_HAS(SYSTEM) */
-
 #else
     /* *-----------------------------------------*
      * |              Memory layout              |
@@ -644,7 +669,7 @@ void rv_reset(riscv_t *rv, riscv_word_t pc)
 
     /* argc */
     uintptr_t *args_p = (uintptr_t *) args_top;
-    memory_write(mem, (uintptr_t) args_p, (void *) &argc, sizeof(int));
+    rv->io.mem_write(rv, (uintptr_t) args_p, (void *) &argc, sizeof(int));
     args_p++;
 
     /* args */
@@ -656,8 +681,8 @@ void rv_reset(riscv_t *rv, riscv_word_t pc)
     for (int i = 0; i < argc; i++) {
         const char *arg = args[i];
         args_len = strlen(arg);
-        memory_write(mem, (uintptr_t) args_p, (void *) arg,
-                     (args_len + 1) * sizeof(uint8_t));
+        rv->io.mem_write(rv, (uintptr_t) args_p, (void *) arg,
+                         (args_len + 1) * sizeof(uint8_t));
         args_space[args_space_idx++] = args_len + 1;
         args_p = (uintptr_t *) ((uintptr_t) args_p + args_len + 1);
         args_len_total += args_len + 1;
@@ -673,8 +698,9 @@ void rv_reset(riscv_t *rv, riscv_word_t pc)
 
     /* argc */
     uintptr_t *sp = (uintptr_t *) stack_top;
-    memory_write(mem, (uintptr_t) sp,
-                 (void *) (mem->mem_base + (uintptr_t) args_p), sizeof(int));
+    rv->io.mem_write(rv, (uintptr_t) sp,
+                     (void *) (mem->mem_base + (uintptr_t) args_p),
+                     sizeof(int));
     args_p++;
     /* keep argc and args[0] within one word due to RV32 ABI */
     sp = (uintptr_t *) ((uint32_t *) sp + 1);
@@ -682,11 +708,12 @@ void rv_reset(riscv_t *rv, riscv_word_t pc)
     /* args */
     for (int i = 0; i < argc; i++) {
         uintptr_t offset = (uintptr_t) args_p;
-        memory_write(mem, (uintptr_t) sp, (void *) &offset, sizeof(uintptr_t));
+        rv->io.mem_write(rv, (uintptr_t) sp, (void *) &offset,
+                         sizeof(uintptr_t));
         args_p = (uintptr_t *) ((uintptr_t) args_p + args_space[i]);
         sp = (uintptr_t *) ((uint32_t *) sp + 1);
     }
-    memory_fill(mem, (uintptr_t) sp, sizeof(uint32_t), 0);
+    rv->io.mem_fill(rv, (uintptr_t) sp, sizeof(uint32_t), 0);
 
     /* reset sp pointing to argc */
     rv->X[rv_reg_sp] = stack_top;
